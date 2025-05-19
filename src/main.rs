@@ -1,6 +1,4 @@
-use neetroc_bot::pieces::{ Piece, PieceType, Side };
 use neetroc_bot::{compass_groups, board::Board};
-use neetroc_bot::occupied_squares::{print_ray_string, generate_ray_path};
 
 fn main() {
     // let mut map = ChessMap::new();

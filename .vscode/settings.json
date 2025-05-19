@@ -1,0 +1,5 @@
+{
+    "window.zoomLevel": 3,
+    "rust-analyzer.workspace.discoverConfig": null,
+    "lldb.adapterBin": "/usr/bin/lldb"
+}

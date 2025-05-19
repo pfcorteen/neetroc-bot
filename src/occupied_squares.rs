@@ -76,26 +76,28 @@ pub fn generate_ray_path(origin: &str, direction: u8, occupied: u64) -> String {
         let mut use_underscore = true;
         while edge_check(current_bit) {
             let next_bit = if shift >= 0 {
-                                current_bit + shift as u64
-                            } else {
-                                current_bit.wrapping_sub(shift.unsigned_abs() as u64)
-                            };
+                                    current_bit + shift as u64
+                                } else {
+                                    current_bit.wrapping_sub(shift.unsigned_abs() as u64)
+                                };
+            // println!("Next bit: {}", next_bit);
+            if next_bit >= 0 && next_bit <= 63 {
+                if (occupied & (1u64 << next_bit)) != 0 {
+                    if empty_count > 0 && use_underscore {
+                        path.push_str("_");
+                        empty_count = 0;
+                        use_underscore = false;
+                    }
+                    if let Some(square_string) = &bit_to_square(next_bit) {
+                        path.push_str(square_string);
+                        use_underscore = false;
+                    }
+                } else {
+                    empty_count += 1;
+                }
 
-            if (occupied & (1u64 << next_bit)) != 0 {
-                if empty_count > 0 && use_underscore {
-                    path.push_str("_");
-                    empty_count = 0;
-                    use_underscore = false;
-                }
-                if let Some(square_string) = &bit_to_square(next_bit) {
-                    path.push_str(square_string);
-                    use_underscore = false;
-                }
-            } else {
-                empty_count += 1;
+                current_bit = next_bit;
             }
-
-            current_bit = next_bit;
 
             if (direction % 2) == 1 { // ie odd numbers indicates half-wind so go no further
                 break;

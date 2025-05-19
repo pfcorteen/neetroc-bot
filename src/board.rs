@@ -42,10 +42,14 @@ impl Board {
                 Some(piece_type_ref) => { // piece_type_ref is &'static PieceType
                     let data: &'static PieceTypeData = piece_type_ref.get_data();
                     println!("Key: {}, Value: {:?}, sliding: {}, side: {:?}", square, piece_type_char, data.sliding, data.side);
-                    let path = generate_ray_path(square, d, self.occupied);
-                    print_ray_string(square, 8, &path);
-                    let xchngr_str = Board::extract_sqid_seq(&self, &path, d);
-                    println!("xchngr_str: {}", xchngr_str); 
+
+                    for drctn in 0..=15 {
+                        // print!("drctn: {}, square: {}, piece: {:?}", drctn, square, &piece);
+                        let path = generate_ray_path(square, drctn, self.occupied);
+                        print_ray_string(square, drctn, &path);
+                        let xchngr_str = Board::extract_pid_seq(&self, &path, drctn);
+                        println!("drctn: {}, xchngr_str: {}", drctn, xchngr_str); 
+                    }
                 }
                 None => {
                     println!("Character '{}' did not match a piece type.", piece_type_char);
@@ -55,7 +59,7 @@ impl Board {
         }
     }
 
-    fn extract_sqid_seq(&self, sqid_seq: &str, d: DirectionNumber) -> String {
+    fn extract_pid_seq(&self, sqid_seq: &str, d: DirectionNumber) -> String {
         let od = if d < 8 { d + 8 } else { d - 8 };
         let _re = Regex::new(r"(_)?([a-h][1-8])").unwrap();
         let mut sqids: String = "".to_string();
@@ -64,12 +68,12 @@ impl Board {
         let mut ulmt;
         let mut sliding_only = false;
 
-        println!("extract_sqid_seq with s: {}", sqid_seq);
+        // println!("extract_sqid_seq with s: {}", sqid_seq);
 
         if sqid_seq_len > 0 {
             if sqid_seq.starts_with("_") {
             // underscore in the first place -> if first occupied sqid can exchange it must be a slider
-                println!("sqid_seq: {sqid_seq}, starts_with underscore/");
+                // println!("sqid_seq: {sqid_seq}, starts_with underscore/");
                 sliding_only = true;
                 llmt = 1;
                 ulmt = 3;
@@ -87,20 +91,20 @@ impl Board {
                         if let Some(piece_type_ref) = PieceType::get_piece_type_data(piece_type_char) {
                             let data: &'static PieceTypeData = piece_type_ref.get_data();
                             let pid = piece.get_pid();
-                            // let ptype = piece.get_piece_fen();
                             let pchar = piece.get_piece_type_as_char();
                             if llmt == 0 && data.directions.contains(&od) {
-                                // the piece mayn be sliding or non-sliding because it only one step away from origin
-                                // if let Some(pchar) = ptype.chars().next() {
-                                    if pchar == 'p' || pchar == 'P' { // PAWN
-                                        if VERTICALS.contains(&od) {
-                                            return sqids;
-                                        } 
-                                    }
-                                // }
+                                // the piece may be sliding or non-sliding because it only one step away from origin
+                                if pchar == 'p' || pchar == 'P' { // PAWN
+                                    if VERTICALS.contains(&od) {
+                                        print!("Re pid: {}, VERTICALS.contains({}),", pid, &od);
+                                        return sqids;
+                                    } 
+                                }
                             } else if !data.sliding {
+                                print!("Re pid: {}, !data.sliding", pid);
                                 return sqids;
                             } else if !data.directions.contains(&od) {
+                                print!("Re pid: {}, !data.directions.contains({})", pid, &od);
                                 return sqids;
                             }
                 
@@ -108,28 +112,6 @@ impl Board {
                             llmt += 2;
                             ulmt += 2;            
                         }
-
-
-                        // let pid = piece.get_pid();
-                        // let ptype = piece.get_piece_fen();
-                        // if llmt == 0 && piece.get_legal_directions().contains(&od) {
-                        //     // the piece mayn be sliding or non-sliding because it only one step away from origin
-                        //     if let Some(pchar) = ptype.chars().next() {
-                        //         if pchar == 'p' || pchar == 'P' { // PAWN
-                        //             if VERTICALS.contains(&od) {
-                        //                 return sqids;
-                        //             } 
-                        //         }
-                        //     }
-                        // } else if !piece.is_sliding() {
-                        //     return sqids;
-                        // } else if !piece.get_legal_directions().contains(&od) {
-                        //     return sqids;
-                        // }
-            
-                        // sqids.push_str(&pid);
-                        // llmt += 2;
-                        // ulmt += 2;
                     }
                     None => {
                         println!("No matching piece");
