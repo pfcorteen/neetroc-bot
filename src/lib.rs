@@ -7,7 +7,6 @@ pub mod pieces;
 
 pub use crate::board::Board as ChessBoard;
 
+pub use compass_groups::*;
 
-// pub use crate::pieces::Piece;
-
-pub use compass_groups::*; 
+pub use pieces::*;

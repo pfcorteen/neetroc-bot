@@ -2,18 +2,20 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"type": "cargo",
-			"command": "run",
+			"type": "process",
+			"command": "cargo",
+			"args": ["run"],
 			"problemMatcher": [
-				"$rustc"
+				"$tsc"
 			],
 			"label": "rust: cargo run"
 		},
 		{
-			"type": "cargo",
-			"command": "build",
+			"type": "process",
+			"command": "cargo",
+			"args": ["build"],
 			"problemMatcher": [
-				"$rustc"
+				"$tsc"
 			],
 			"group": "build",
 			"label": "rust: cargo build"

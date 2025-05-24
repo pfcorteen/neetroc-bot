@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::vec::Vec;
-use crate::compass_groups::{DirectionNumber, CARDINALS, ORDINALS, HALF_WINDS };
+use crate::compass_groups::Direction::*;
+use crate::compass_groups::{ Direction };
 use regex::Regex;
 use std::sync::LazyLock as Lazy;
 
@@ -8,6 +9,36 @@ use std::sync::LazyLock as Lazy;
 pub enum Side {
     White,
     Black,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum BasicPieceType {
+    King,
+    Queen,
+    Rook,
+    Bishop,
+    Knight, 
+    Pawn,
+}
+
+impl BasicPieceType {
+    pub fn from_char(c: char) -> Option<Self> {
+        match c {
+            'K' => Some(BasicPieceType::King),
+            'k' => Some(BasicPieceType::King),
+            'Q' => Some(BasicPieceType::Queen),
+            'q' => Some(BasicPieceType::Queen),
+            'R' => Some(BasicPieceType::Rook),
+            'r' => Some(BasicPieceType::Rook),  
+            'B' => Some(BasicPieceType::Bishop),
+            'b' => Some(BasicPieceType::Bishop),
+            'N' => Some(BasicPieceType::Knight),
+            'n' => Some(BasicPieceType::Knight),
+            'P' => Some(BasicPieceType::Pawn),
+            'p' => Some(BasicPieceType::Pawn),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -29,42 +60,42 @@ pub enum PieceType {
 pub struct PieceTypeData {
     pub side: Side,
     pub sliding: bool,
-    pub directions: Vec<DirectionNumber>
+    pub directions: Vec<Direction>
 }
 
 pub static WHITE_KING_DATA: Lazy<PieceTypeData> = Lazy::new(|| {
-    PieceTypeData {side: Side::White, sliding: false, directions: vec![0,2,4,6,8,10,12,14]}
+    PieceTypeData {side: Side::White, sliding: false, directions: vec![ N, NE, E, SE, S, SW, W, NW ]}
 });
 pub static BLACK_KING_DATA: Lazy<PieceTypeData> = Lazy::new(|| {
-    PieceTypeData {side: Side::Black, sliding: false, directions: vec![0,2,4,6,8,10,12,14]}
+    PieceTypeData {side: Side::Black, sliding: false, directions: vec![ N, NE, E, SE, S, SW, W, NW ]}
 });
 pub static WHITE_QUEEN_DATA: Lazy<PieceTypeData> = Lazy::new(|| {
-    PieceTypeData {side: Side::White, sliding: true, directions: vec![0,2,4,6,8,10,12,14]}
+    PieceTypeData {side: Side::White, sliding: true, directions: vec![ N, NE, E, SE, S, SW, W, NW ]}
 });
 pub static BLACK_QUEEN_DATA: Lazy<PieceTypeData> = Lazy::new(|| {
-    PieceTypeData {side: Side::Black, sliding: true, directions: vec![0,2,4,6,8,10,12,14]}
+    PieceTypeData {side: Side::Black, sliding: true, directions: vec![ N, NE, E, SE, S, SW, W, NW ]}
 });
 pub static WHITE_ROOK_DATA: Lazy<PieceTypeData> = Lazy::new(|| {
-    PieceTypeData {side: Side::White, sliding: true, directions: vec![0,4,8,12]}
+    PieceTypeData {side: Side::White, sliding: true, directions: vec![ N, E, S, W ]}
 });
 pub static BLACK_ROOK_DATA: Lazy<PieceTypeData> = Lazy::new(|| {
-    PieceTypeData {side: Side::Black, sliding: true, directions: vec![0,4,8,12]}
+    PieceTypeData {side: Side::Black, sliding: true, directions: vec![ N, E, S, W ]}
 });
 pub static WHITE_BISHOP_DATA: Lazy<PieceTypeData> = Lazy::new(|| {
-    PieceTypeData {side: Side::White, sliding: true, directions: vec![2,6,10,14]}
+    PieceTypeData {side: Side::White, sliding: true, directions: vec![ NE, SE, SW, NW ]}
 });
 pub static BLACK_BISHOP_DATA: Lazy<PieceTypeData> = Lazy::new(|| {
-    PieceTypeData {side: Side::Black, sliding: true, directions: vec![2,6,10,14]}
+    PieceTypeData {side: Side::Black, sliding: true, directions: vec![ NE, SE, SW, NW ]}
 });pub static WHITE_KNIGHT_DATA: Lazy<PieceTypeData> = Lazy::new(|| {
-    PieceTypeData {side: Side::White, sliding: false, directions: vec![1,3,5,7,9,11,13,15]}
+    PieceTypeData {side: Side::White, sliding: false, directions: vec![ NNE, ENE, ESE, SSE, SSW, WSW, WNW, NNW ]}
 });
 pub static BLACK_KNIGHT_DATA: Lazy<PieceTypeData> = Lazy::new(|| {
-    PieceTypeData {side: Side::Black, sliding: false, directions: vec![1,3,5,7,9,11,13,15]}
+    PieceTypeData {side: Side::Black, sliding: false, directions: vec![ NNE, ENE, ESE, SSE, SSW, WSW, WNW, NNW ]}
 });pub static WHITE_PAWN_DATA: Lazy<PieceTypeData> = Lazy::new(|| {
-    PieceTypeData {side: Side::White, sliding: false, directions: vec![0,2,14]}
+    PieceTypeData {side: Side::White, sliding: false, directions: vec![ N, NE, NW ]}
 });
 pub static BLACK_PAWN_DATA: Lazy<PieceTypeData> = Lazy::new(|| {
-    PieceTypeData {side: Side::Black, sliding: false, directions: vec![2,6,10]}
+    PieceTypeData {side: Side::Black, sliding: false, directions: vec![ S, SW, SE ]}
 });
 
 
@@ -126,8 +157,8 @@ impl PieceType {
 
 #[derive(Debug)]
 pub struct Piece {
-    pid: String,
-    exchangers: HashMap<u8, String>,
+    pub pid: String,
+    pub exchangers: HashMap<Direction, String>,
 }
 impl Piece {
     pub(crate) fn new(piece_id: &str) -> Option<Self> {
@@ -142,45 +173,9 @@ impl Piece {
             None
         }
     }
-  
     pub fn get_pid(&self) -> &str { &self.pid }
     pub fn get_square(&self) -> &str { &self.pid[0..2] }
     pub fn get_piece_fen(&self) -> &str { &self.pid[2..3] }
-    pub fn get_piece_type_as_char(&self) -> char {
-        self.pid.chars().nth(2).unwrap()
-    }
-    // pub fn get_legal_directions (&self) -> Vec<DirectionNumber> {
-    //     let directions = match self.get_piece_fen() {
-    //         "k" => vec![0, 4, 8, 12, 2, 6, 10, 14].iter().cloned().collect(),
-    //         "K" => vec![0, 4, 8, 12, 2, 6, 10, 14].iter().cloned().collect(),
-    //         "q" => vec![0, 4, 8, 12, 2, 6, 10, 14].iter().cloned().collect(),
-    //         "Q" => vec![0, 4, 8, 12, 2, 6, 10, 14].iter().cloned().collect(),
-    //         "r" => vec![0, 4, 8, 12].iter().cloned().collect(),
-    //         "R" => vec![0, 4, 8, 12].iter().cloned().collect(),
-    //         "b" => vec![2, 6, 10, 14].iter().cloned().collect(),
-    //         "B" => vec![2, 6, 10, 14].iter().cloned().collect(),
-    //         "n" => vec![1, 3, 5, 7, 9, 11, 13, 15].iter().cloned().collect(),
-    //         "N" => vec![1, 3, 5, 7, 9, 11, 13, 15].iter().cloned().collect(),
-    //         "p" => vec![8, 6, 10].iter().cloned().collect(),
-    //         "P" => vec![0, 2, 14].iter().cloned().collect(),
-    //         _ => panic!("invalid piece type indicator"),
-    //     };
-    //     directions
-    // }
-    // pub fn get_side(&self) -> Side {
-    //     if self.get_piece_fen().chars().next().unwrap().is_uppercase() {
-    //         Side::White
-    //     } else {
-    //         Side::Black
-    //     }
-    // }
-    // pub fn is_sliding(&self) -> bool {
-    //     let pf = self.get_piece_fen().chars().next().unwrap().to_ascii_uppercase();
-    //     let sliding = match pf {
-    //         'Q' | 'R' | 'B' => true,
-    //         _ => false
-    //     };
-    //     sliding
-    // }
+    pub fn get_piece_type_as_char(&self) -> char { self.pid.chars().nth(2).unwrap() }
 }
 
