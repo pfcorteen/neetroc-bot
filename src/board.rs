@@ -1,18 +1,17 @@
 use std::collections::HashMap;
-use regex::Regex;
 //use strum_macros::EnumIter;
 use strum::IntoEnumIterator;
 use crate::pieces::Piece;
 use crate::pieces::PieceType;
 use crate::pieces::PieceTypeData;
 use crate::pieces::BasicPieceType;
-use crate::occupied_squares::{ square_to_bit, bit_to_square, print_ray_string, generate_ray_path };
-use crate::compass_groups::{ Direction, VERTICALS };
+use crate::occupied_squares::{ square_to_bit, bit_to_square, generate_ray_path };
+use crate::compass_groups::{ Direction, VERTICALS, HALF_WINDS };
 
 // #[derive(Debug)]
 pub struct Board {
+    occupied: u64, // representation of pieces as bits in 8 bytes according to piece position
     pieces: HashMap<String, Piece>,
-    occupied: u64
 }
 
 impl Board {
@@ -52,7 +51,7 @@ impl Board {
                 for drctn in Direction::iter() {
                     let path = generate_ray_path(square, drctn, self.occupied);
                     if path != "" {
-                        let xchngr_str = Board::extract_pid_seq(self, &path, drctn);
+                        let xchngr_str = Board::extract_pid_seq(self, &data, &path, drctn);
                         updates.push((square.clone(), drctn, xchngr_str));
                     }
                 }
@@ -77,21 +76,16 @@ impl Board {
         }
     }
 
-    fn extract_pid_seq(&self, sqid_seq: &str, drctn: Direction) -> String {
+    fn extract_pid_seq(&self, focus_piece_data: &PieceTypeData, sqid_seq: &str, drctn: Direction) -> String {
         let odrctn = drctn.opposite();
-        let _re = Regex::new(r"(_)?([a-h][1-8])").unwrap();
-        let mut pids: String = "".to_string();
+        let mut pids = String::new(); // pins will be indicated with '*' in the first place
         let sqid_seq_len = sqid_seq.len();
         let mut llmt;
         let mut ulmt;
         let mut sliding_only = false;
 
-        // println!("extract_sqid_seq with s: {}", sqid_seq);
-
         if sqid_seq_len > 0 {
             if sqid_seq.starts_with("_") {
-            // underscore in the first place -> if first occupied sqid can exchange it must be a slider
-                // println!("sqid_seq: {sqid_seq}, starts_with underscore/");
                 sliding_only = true;
                 llmt = 1;
                 ulmt = 3;
@@ -104,25 +98,33 @@ impl Board {
                 let sq = &sqid_seq[llmt..ulmt];
                 let piece = &self.pieces.get(sq);
                 match piece {
-                    Some(piece) =>{
+                    Some(piece) => {
                         let piece_type_char = piece.get_piece_type_as_char();
                         if let Some(piece_type_ref) = PieceType::get_piece_type_data(piece_type_char) {
                             let data: &'static PieceTypeData = piece_type_ref.get_data();
                             let pid = piece.get_pid();
-                            // let pt = PieceType::from_char(piece_type_char);
-                            let basic_piece_type = BasicPieceType::from_char(piece_type_char);
-                            let pchar = piece.get_piece_type_as_char();
+                            let _side = piece.get_piece_side(); // Prefix with underscore to acknowledge it's unused
+                            let _basic_piece_type = BasicPieceType::from_char(piece_type_char);
+                            let _pchar = piece.get_piece_type_as_char();
 
-                            if sliding_only == false {
+                            if !sliding_only {
                                 // first piece encountered only one step away, to allow single step pieces
                                 if !data.directions.contains(&odrctn) {
-                                    return pids;
-                                } else if basic_piece_type == Some(BasicPieceType::Pawn) && VERTICALS.contains(&drctn) {
+                                    if !HALF_WINDS.contains(&drctn) && focus_piece_data.basic_piece_type == BasicPieceType::King {
+                                        return Board::extract_pin_seq(self, &focus_piece_data, sqid_seq, drctn);
+                                    } else {
+                                        return pids;
+                                    }
+                                } else if focus_piece_data.basic_piece_type == BasicPieceType::Pawn && VERTICALS.contains(&drctn) {
                                     return pids;
                                 }
                             } else { //sliding only
                                 if !data.sliding || !data.directions.contains(&odrctn) {
-                                    return pids;
+                                    if !HALF_WINDS.contains(&drctn) && focus_piece_data.basic_piece_type == BasicPieceType::King {
+                                        return Board::extract_pin_seq(self, &focus_piece_data, sqid_seq, drctn);
+                                    } else {
+                                        return pids;
+                                    }
                                 }
                             }
                             
@@ -140,6 +142,85 @@ impl Board {
         }
         pids
     }
+
+    fn extract_pin_seq(&self, focus_king_piece_data: &PieceTypeData, sqid_seq: &str, drctn: Direction) -> String {
+        let odrctn = drctn.opposite();
+        let mut pins = String::new(); // pins will be indicated with '*' in the first place
+        let sqid_seq_len = sqid_seq.len();
+        let mut llmt;
+        let mut ulmt;
+        let mut sliding_only = false;
+        let mut pin_candidate_found = false;
+        let mut pin_established = false;
+
+        if sqid_seq_len >= 4 {
+            if sqid_seq.starts_with("_") {
+                sliding_only = true;
+                llmt = 1;
+                ulmt = 3;
+            } else {
+                llmt = 0;
+                ulmt = 2;
+            }
+
+            while ulmt <= sqid_seq_len {
+                let sq = &sqid_seq[llmt..ulmt];
+                let piece = &self.pieces.get(sq);
+                match piece {
+                    Some(piece) => {
+                        let piece_type_char = piece.get_piece_type_as_char();
+                        if let Some(piece_type_ref) = PieceType::get_piece_type_data(piece_type_char) {
+                            let piece_data: &'static PieceTypeData = piece_type_ref.get_data();
+                            let pid = piece.get_pid();
+                            let _side = piece.get_piece_side(); // NB: pinned piece can be either side
+                            let _basic_piece_type = BasicPieceType::from_char(piece_type_char);
+
+                            if !pin_candidate_found {
+                                if !sliding_only { // first piece is one step from the king!!
+                                // if current piece is not pinnable then abandon function!!
+                                    if piece_data.directions.contains(&odrctn)
+                                        && (!(piece_data.basic_piece_type == BasicPieceType::Pawn && VERTICALS.contains(&odrctn))
+                                                || HALF_WINDS.contains(&drctn)) {
+                                    // None!! Abandon due to no pinnable piece
+                                        return "".to_string();
+                                    }
+                                } else { //sliding only
+                                    if piece_data.sliding && piece_data.directions.contains(&odrctn) {
+                                        return "".to_string();
+                                    }
+                                }
+                                pin_candidate_found = true;
+                                sliding_only = true;
+                                pins.push_str("*");
+
+                            } else if !pin_established {
+                                if !piece_data.directions.contains(&odrctn)
+                                    || !piece_data.sliding
+                                        || piece_data.side == focus_king_piece_data.side {
+                                    return "".to_string();
+                                }
+                                pin_established = true;
+
+                            } else {
+                                if !piece_data.directions.contains(&odrctn) || !piece_data.sliding  {
+                                    return pins;
+                                }
+                            }
+
+                            pins.push_str(&pid);
+                            llmt += 2;
+                            ulmt += 2;            
+                        }
+                    }
+                    None => {
+                        println!("No matching piece");
+                    }
+                }
+            }
+        }
+        pins
+    }
+
 
     // fn extract_xchngrs (&self, ss: &str) -> () {
     //     // let mut path = String::new();

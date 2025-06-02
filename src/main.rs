@@ -1,4 +1,4 @@
-use neetroc_bot::{compass_groups, board::Board};
+use neetroc_bot::board::Board;
 
 fn main() {
     // let mut map = ChessMap::new();

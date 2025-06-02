@@ -1,14 +1,28 @@
 {
     "version": "0.2.0",
     "configurations": [
+        
         {
             "type": "lldb",
             "request": "launch",
             "name": "Debug executable",
-            "program": "${workspaceFolder}/target/debug/neetroc_bot",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=neetroc_bot",
+                    "--package=neetroc_bot"
+                ],
+                "filter": {
+                    "name": "neetroc_bot",
+                    "kind": "bin"
+                }
+            },
             "args": [],
             "cwd": "${workspaceFolder}",
-            "preLaunchTask": "cargo build"
+            "env": {
+                "RUST_BACKTRACE": "1"
+            },
+            "sourceLanguages": ["rust"]
         }
     ]
 }
