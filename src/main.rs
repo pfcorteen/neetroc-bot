@@ -1,5 +1,5 @@
 use neetroc_bot::board::Board;
-use neetroc_bot::occupied_squares::square_to_bit;
+// use neetroc_bot::occupied_squares::square_to_bit;
 
 fn main() {
     let mut board = Board::new();

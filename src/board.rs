@@ -1,12 +1,11 @@
-use std::collections::HashMap;
-//use strum_macros::EnumIter;
-use strum::IntoEnumIterator;
+use crate::compass_groups::{Direction, HALF_WINDS, VERTICALS};
+use crate::occupied_squares::{bit_to_square, generate_ray_path, square_to_bit};
+use crate::pieces::BasicPieceType;
 use crate::pieces::Piece;
 use crate::pieces::PieceType;
 use crate::pieces::PieceTypeData;
-use crate::pieces::BasicPieceType;
-use crate::occupied_squares::{ square_to_bit, bit_to_square, generate_ray_path };
-use crate::compass_groups::{ Direction, VERTICALS, HALF_WINDS };
+use std::collections::HashMap;
+use strum::IntoEnumIterator;
 
 #[derive(Debug)]
 pub struct Board {
@@ -29,30 +28,36 @@ impl Board {
     }
 
     pub fn create_and_place_piece(&mut self, piece_identifier: &str) {
-        if let Some(piece) = Piece::new(&piece_identifier) {
+        if let Some(piece) = Piece::new(piece_identifier) {
             let square = &piece_identifier[0..2].to_string();
             self.pieces.insert(square.clone(), piece);
-            
-            if let Some(bit) = square_to_bit(&square) {
+
+            if let Some(bit) = square_to_bit(square) {
                 self.occupied |= 1u64 << bit;
-            }        
+            }
         } else {
-            println!("Unable to create piece with identifier: {}.", &piece_identifier.to_string());
+            println!(
+                "Unable to create piece with identifier: {}.",
+                &piece_identifier.to_string()
+            );
         }
     }
 
-    pub fn build_all_xchngrs (&mut self) -> () {
+    pub fn build_all_xchngrs(&mut self) {
         println!("DEBUG: Entering build_all_xchngrs");
         // First collect all the paths and directions we need to process
         let mut updates: Vec<(String, Direction, String)> = Vec::new();
-        
+
         println!("DEBUG: Starting piece iteration");
         for (square, piece) in &self.pieces {
             println!("DEBUG: Processing piece at square {square}");
             let piece_type_char = piece.get_piece_type_as_char();
             if let Some(piece_type_ref) = PieceType::get_piece_type_data(piece_type_char) {
                 let data: &'static PieceTypeData = piece_type_ref.get_data();
-                println!("Key: {}, Value: {:?}, sliding: {}, side: {:?}", square, piece_type_char, data.sliding, data.side);
+                println!(
+                    "Key: {}, Value: {:?}, sliding: {}, side: {:?}",
+                    square, piece_type_char, data.sliding, data.side
+                );
 
                 for drctn in Direction::iter() {
                     let ray_path_opt = generate_ray_path(square, drctn, self.occupied);
@@ -64,7 +69,10 @@ impl Board {
                             let xchngr_opt = Board::extract_pid_seq(self, data, &ray_path, drctn);
                             match xchngr_opt {
                                 None => {
-                                    println!("No sequence was extracted from {}, {:?}, {}", square, drctn, &ray_path);
+                                    println!(
+                                        "No sequence was extracted from {}, {:?}, {}",
+                                        square, drctn, &ray_path
+                                    );
                                 }
                                 Some(xchngrs) => {
                                     updates.push((square.clone(), drctn, xchngrs));
@@ -94,7 +102,12 @@ impl Board {
         }
     }
 
-    fn extract_pid_seq(&self, focus_piece_data: &PieceTypeData, sqid_seq: &str, drctn: Direction) -> Option<String> {
+    fn extract_pid_seq(
+        &self,
+        focus_piece_data: &PieceTypeData,
+        sqid_seq: &str,
+        drctn: Direction,
+    ) -> Option<String> {
         let odrctn = drctn.opposite();
         let mut pids = String::new(); // pins will be indicated with:
         // '<' (king and pinned piece same colour)  or '>' (different colours):= pin(?) or skewer(?)
@@ -119,42 +132,56 @@ impl Board {
                 match piece {
                     Some(piece) => {
                         let piece_type_char = piece.get_piece_type_as_char();
-                        if let Some(piece_type_ref) = PieceType::get_piece_type_data(piece_type_char) {
+                        if let Some(piece_type_ref) =
+                            PieceType::get_piece_type_data(piece_type_char)
+                        {
                             let data: &'static PieceTypeData = piece_type_ref.get_data();
                             let pid = piece.get_pid();
-                            // let _side = piece.get_piece_side(); // Prefix with underscore to acknowledge it's unused
-                            // let _basic_piece_type = BasicPieceType::from_char(piece_type_char);
-                            // let _pchar = piece.get_piece_type_as_char();
-
                             if !sliding_only {
                                 // first piece encountered only one step away, to allow single step pieces
                                 if !data.directions.contains(&odrctn) {
-                                    if !HALF_WINDS.contains(&drctn) && focus_piece_data.basic_piece_type == BasicPieceType::King {
-                                        return Board::extract_pin_seq(self, focus_piece_data, sqid_seq, drctn);
+                                    if !HALF_WINDS.contains(&drctn)
+                                        && focus_piece_data.basic_piece_type == BasicPieceType::King
+                                    {
+                                        return Board::extract_pin_seq(
+                                            self,
+                                            focus_piece_data,
+                                            sqid_seq,
+                                            drctn,
+                                        );
                                     } else {
-                                        return None
+                                        return None;
                                     }
                                 // } else if focus_piece_data.basic_piece_type == BasicPieceType::Pawn && VERTICALS.contains(&drctn) {
-                                } else if data.basic_piece_type == BasicPieceType::Pawn && VERTICALS.contains(&drctn) {
+                                } else if data.basic_piece_type == BasicPieceType::Pawn
+                                    && VERTICALS.contains(&drctn)
+                                {
                                     return None;
                                 }
-                            } else { //sliding only
+                            } else {
+                                //sliding only
                                 if !data.sliding || !data.directions.contains(&odrctn) {
                                     if !pids.is_empty() {
                                         return Some(pids);
-                                    } else if !HALF_WINDS.contains(&drctn) && focus_piece_data.basic_piece_type == BasicPieceType::King {
-                                        return Board::extract_pin_seq(self, focus_piece_data, sqid_seq, drctn);
+                                    } else if !HALF_WINDS.contains(&drctn)
+                                        && focus_piece_data.basic_piece_type == BasicPieceType::King
+                                    {
+                                        return Board::extract_pin_seq(
+                                            self,
+                                            focus_piece_data,
+                                            sqid_seq,
+                                            drctn,
+                                        );
                                     } else {
-                                        return None
+                                        return None;
                                     }
-
                                 }
                             }
-                            
+
                             pids.push_str(pid);
                             sliding_only = true;
                             llmt += 2;
-                            ulmt += 2;            
+                            ulmt += 2;
                         }
                     }
                     None => {
@@ -166,7 +193,12 @@ impl Board {
         Some(pids)
     }
 
-    fn extract_pin_seq(&self, focus_king_piece_data: &PieceTypeData, sqid_seq: &str, drctn: Direction) -> Option<String> {
+    fn extract_pin_seq(
+        &self,
+        focus_king_piece_data: &PieceTypeData,
+        sqid_seq: &str,
+        drctn: Direction,
+    ) -> Option<String> {
         let odrctn = drctn.opposite();
         let mut pins = String::new(); // pins will be indicated with '*' in the first place
         let sqid_seq_len = sqid_seq.len();
@@ -192,50 +224,56 @@ impl Board {
                 match piece {
                     Some(piece) => {
                         let piece_type_char = piece.get_piece_type_as_char();
-                        if let Some(piece_type_ref) = PieceType::get_piece_type_data(piece_type_char) {
+                        if let Some(piece_type_ref) =
+                            PieceType::get_piece_type_data(piece_type_char)
+                        {
                             let piece_data: &'static PieceTypeData = piece_type_ref.get_data();
                             let pid = piece.get_pid();
 
                             if !pin_candidate_found {
-                                if !sliding_only { // first piece is one step from the king!!
-                                // if current piece is not pinnable then abandon function!!
+                                if !sliding_only {
+                                    // first piece is one step from the king!!
+                                    // if current piece is not pinnable then abandon function!!
                                     if piece_data.directions.contains(&odrctn)
-                                        && (!(piece_data.basic_piece_type == BasicPieceType::Pawn && VERTICALS.contains(&odrctn))
-                                                || HALF_WINDS.contains(&drctn)) {
-                                        return None
+                                        && (!(piece_data.basic_piece_type == BasicPieceType::Pawn
+                                            && VERTICALS.contains(&odrctn))
+                                            || HALF_WINDS.contains(&drctn))
+                                    {
+                                        return None;
                                     }
-                                } else { //sliding only
-                                    if piece_data.sliding && piece_data.directions.contains(&odrctn) {
+                                } else {
+                                    //sliding only
+                                    if piece_data.sliding && piece_data.directions.contains(&odrctn)
+                                    {
                                         return None;
                                     }
                                 }
                                 pin_candidate_found = true;
                                 sliding_only = true;
-                                
+
                                 if focus_king_piece_data.side == piece_data.side {
-                                    pins.push('<');                                   
+                                    pins.push('<');
                                 } else {
-                                    pins.push('<');                                   
+                                    pins.push('>');
                                 }
                                 // pins.push_str("*");
-
                             } else if !pin_established {
                                 if !piece_data.directions.contains(&odrctn)
                                     || !piece_data.sliding
-                                        || piece_data.side == focus_king_piece_data.side {
-                                    return None
+                                    || piece_data.side == focus_king_piece_data.side
+                                {
+                                    return None;
                                 }
                                 pin_established = true;
-
-                            } else {
-                                if !piece_data.directions.contains(&odrctn) || !piece_data.sliding  {
-                                    break;
-                                }
+                            } else if !piece_data.directions.contains(&odrctn)
+                                || !piece_data.sliding
+                            {
+                                break;
                             }
 
                             pins.push_str(&pid);
                             llmt += 2;
-                            ulmt += 2;            
+                            ulmt += 2;
                         }
                     }
                     None => {
@@ -244,20 +282,8 @@ impl Board {
                 }
             }
         }
-        if pins.len() > 0 {
-            Some(pins)
-        } else {
-            None
-        }
+        if !pins.is_empty() { Some(pins) } else { None }
     }
-
-
-    // fn extract_xchngrs (&self, ss: &str) -> () {
-    //     // let mut path = String::new();
-
-    //     println!("exs on ray: {:?}", ss);
-    //     // path.push('z')
-    // }
 
     pub fn get_piece_on(&self, square: &str) -> Option<&Piece> {
         self.pieces.get(square)
@@ -265,11 +291,11 @@ impl Board {
 
     pub fn remove_piece_from(&mut self, square: &str) {
         let piece = self.pieces.remove(square);
-        
-        if piece.is_some() {
-            if let Some(bit) = square_to_bit(square) {
-                self.occupied &= !(1u64 << bit);
-            }
+
+        if piece.is_some()
+            && let Some(bit) = square_to_bit(square)
+        {
+            self.occupied &= !(1u64 << bit);
         }
     }
 
@@ -311,8 +337,8 @@ impl Board {
         self.create_and_place_piece("d3r");
         self.create_and_place_piece("f3p");
         self.create_and_place_piece("h3K");
-        self.create_and_place_piece("a2B");        
-        self.create_and_place_piece("e2P");        
+        self.create_and_place_piece("a2B");
+        self.create_and_place_piece("e2P");
     }
 
     pub fn initialise_custom1(&mut self) {
@@ -326,9 +352,8 @@ impl Board {
         self.create_and_place_piece("f3b");
         self.create_and_place_piece("c2n");
         self.create_and_place_piece("g2B");
-        self.create_and_place_piece("a1k");        
+        self.create_and_place_piece("a1k");
     }
-
 
     pub fn initialise_standard(&mut self) {
         // White pieces
@@ -368,84 +393,18 @@ impl Board {
         self.create_and_place_piece("h7p");
     }
 
-    // New method to get the bitboard
     pub fn get_occupied_bitboard(&self) -> u64 {
         self.occupied
     }
 
-    // New method to print occupied squares
     pub fn print_occupied_squares(&self) {
         println!("Occupied squares (from bitboard):");
         for bit in 0..64 {
-            if (self.occupied & (1u64 << bit)) != 0 && let Some(square) = bit_to_square(bit) {
+            if (self.occupied & (1u64 << bit)) != 0
+                && let Some(square) = bit_to_square(bit)
+            {
                 println!("-{square}");
             }
         }
     }
-
-    // pub fn test_piece_moves() {
-    //     let tsq = "a1";
-    //     let sq_opt = get_next_sqid(tsq, Direction::N);
-    //     if let Some(sq) = sq_opt {
-    //         assert!(sq == "a2");
-    //     } else {
-    //         println!("sq_opt was None");
-    //     }
-
-    //     let tsq = "d4";
-    //     let answers = ["e6","f5","f3","e2","c2","b3","b5","c6"];
-
-    //     for (cnt, drctn) in HALF_WINDS.iter().enumerate() {
-    //         let sq_opt = get_next_sqid(tsq, *drctn);
-    //         let answr = answers[cnt];
-    //         if let Some(sq) = sq_opt {
-    //             println!("{drctn:?} from {tsq} = {sq}, {answr:?}");
-    //             assert!(sq == answr);
-    //         } else {
-    //             println!("{drctn:?} from {tsq} = {sq_opt:?}, {answr:?}");
-    //         }
-    //     }
-    // }
-
-    // pub fn test_knight_movements() {
-    //     println!("Entered test_knight_movements");
-
-    //     let mut bit_board = 0u64;
-    //     let squares = [
-    //         "a1","b3","c2",
-    //         "a8","b6","c7",
-    //         "h1","f2","g3",
-    //         "h8","f7","g6",
-    //         "a4","a5",
-    //         "h4","h5",
-    //         "d1","e1",
-    //         "d8","e8"];
-    //     let mut path_count = 0;
-    //     let mut none_count = 0;
-
-    //     for sq in squares {
-    //         if let Some(bit) = square_to_bit(sq) {
-    //             bit_board |= 1u64 << bit;
-    //         }
-    //     }
-    //     for sq in squares {
-    //         println!("Drctns for {sq}");
-    //         for drctn in HALF_WINDS.iter() {
-    //             let path_opt = generate_ray_path(sq, *drctn, bit_board);
-    //             match path_opt {
-    //                 None => {
-    //                     none_count += 1;
-    //                     println!("No ray path in {drctn:?}, count: {none_count}");
-    //                 }
-    //                 Some(path) => {
-    //                     path_count += 1;
-    //                     println!("Ray path in {drctn:?} got path {path}, count: {path_count}");
-    //                 }
-    //             }
-    //         }
-    //     }
-
-    //     assert! (path_count == 32);
-    //     assert! (none_count == 128);
-    // }
-} 
+}

@@ -1,7 +1,7 @@
 {
     "window.zoomLevel": 3,
-    "rust-analyzer.workspace.discoverConfig": true,
-    "rust-analyzer.checkOnSave.command": "clippy",
+    "rust-analyzer.workspace.discoverConfig": null,
+    "rust-analyzer.checkOnSave.command": true,
     "rust-analyzer.cargo.loadOutDirsFromCheck": true,
     "rust-analyzer.procMacro.enable": true,
     "rust-analyzer.inlayHints.enable": true,
@@ -9,14 +9,14 @@
     "rust-analyzer.inlayHints.chainingHints.enable": true,
     "rust-analyzer.inlayHints.parameterHints.enable": true,
     "rust-analyzer.diagnostics.enable": true,
-    "rust-analyzer.hover.enable": true,
+    // "rust-analyzer.hover.enable": true,
     "rust-analyzer.hover.documentation.enable": true,
     "rust-analyzer.hover.actions.enable": true,
     "rust-analyzer.server.path": "rust-analyzer",
     "rust-analyzer.trace.server": "verbose",
-    "rust-analyzer.trace.extension": true,
+    // "rust-analyzer.trace.extension": true,
     "editor.hover.enabled": true,
     "editor.hover.delay": 100,
     "editor.hover.sticky": true,
-    "lldb.adapterBin": "/usr/bin/lldb"
+    // "lldb.adapterBin": "/usr/bin/lldb"
 }
