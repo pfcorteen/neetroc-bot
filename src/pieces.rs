@@ -24,18 +24,12 @@ pub enum BasicPieceType {
 impl BasicPieceType {
     pub fn from_char(c: char) -> Option<Self> {
         match c {
-            'K' => Some(BasicPieceType::King),
-            'k' => Some(BasicPieceType::King),
-            'Q' => Some(BasicPieceType::Queen),
-            'q' => Some(BasicPieceType::Queen),
-            'R' => Some(BasicPieceType::Rook),
-            'r' => Some(BasicPieceType::Rook),
-            'B' => Some(BasicPieceType::Bishop),
-            'b' => Some(BasicPieceType::Bishop),
-            'N' => Some(BasicPieceType::Knight),
-            'n' => Some(BasicPieceType::Knight),
-            'P' => Some(BasicPieceType::Pawn),
-            'p' => Some(BasicPieceType::Pawn),
+            'K' | 'k' => Some(BasicPieceType::King),
+            'Q' | 'q' => Some(BasicPieceType::Queen),
+            'R' | 'r' => Some(BasicPieceType::Rook),
+            'B' | 'b' => Some(BasicPieceType::Bishop),
+            'N' | 'n' => Some(BasicPieceType::Knight),
+            'P' | 'p' => Some(BasicPieceType::Pawn),
             _ => None,
         }
     }
@@ -193,7 +187,7 @@ impl PieceType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Piece {
     pub pid: String,
     pub exchangers: HashMap<Direction, String>,

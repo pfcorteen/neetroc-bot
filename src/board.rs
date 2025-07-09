@@ -1,17 +1,46 @@
-use crate::compass_groups::{Direction, HALF_WINDS, VERTICALS};
-use crate::occupied_squares::{bit_to_square, generate_ray_path, square_to_bit};
+use crate::compass_groups::{Direction, HALF_WINDS, VERTICALS, get_direction};
+use crate::occupied_squares::{bit_to_string_square, generate_ray_path, square_to_bit};
 use crate::pieces::BasicPieceType;
 use crate::pieces::Piece;
 use crate::pieces::PieceType;
 use crate::pieces::PieceTypeData;
 use std::collections::HashMap;
-use strum::IntoEnumIterator;
+use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Debug)]
+// use std::fmt::Display;
+use std::str::FromStr;
+use strum::{AsRefStr, Display, EnumString};
+
+#[derive(Debug, EnumIter, PartialEq, Eq, Hash, Copy, Clone)] // These are useful traits to derive
+#[derive(Display, AsRefStr, EnumString)]
+#[allow(non_camel_case_types)]
+pub enum Square {
+    a8, b8, c8, d8, e8, f8, g8, h8,
+    a7, b7, c7, d7, e7, f7, g7, h7,
+    a6, b6, c6, d6, e6, f6, g6, h6,
+    a5, b5, c5, d5, e5, f5, g5, h5,
+    a4, b4, c4, d4, e4, f4, g4, h4,
+    a3, b3, c3, d3, e3, f3, g3, h3,
+    a2, b2, c2, d2, e2, f2, g2, h2,
+    a1, b1, c1, d1, e1, f1, g1, h1,
+}
+
+
+
+#[derive(Debug,Clone)]
 pub struct Board {
     occupied: u64, // representation of pieces as bits in 8 bytes according to piece position
-    pieces: HashMap<String, Piece>,
+    pieces: HashMap<Square, Piece>,
 }
+
+// impl std::fmt::Debug for Board {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         f.debug_struct("Board")
+//             .field("occupied", &format!("0x{:x}", self.occupied))
+//             .field("piece_count", &self.pieces.len())
+//             .finish()
+//     }
+// }
 
 impl Default for Board {
     fn default() -> Self {
@@ -29,8 +58,9 @@ impl Board {
 
     pub fn create_and_place_piece(&mut self, piece_identifier: &str) {
         if let Some(piece) = Piece::new(piece_identifier) {
-            let square = &piece_identifier[0..2].to_string();
-            self.pieces.insert(square.clone(), piece);
+            let sq = &piece_identifier[0..2].to_string();
+            let square = Square::from_str(sq).unwrap();
+            self.pieces.insert(square, piece);
 
             if let Some(bit) = square_to_bit(square) {
                 self.occupied |= 1u64 << bit;
@@ -44,40 +74,22 @@ impl Board {
     }
 
     pub fn build_all_xchngrs(&mut self) {
-        println!("DEBUG: Entering build_all_xchngrs");
+        // println!("DEBUG: Entering build_all_xchngrs");
         // First collect all the paths and directions we need to process
-        let mut updates: Vec<(String, Direction, String)> = Vec::new();
+        let mut updates: Vec<(Square, Direction, String)> = Vec::new();
 
-        println!("DEBUG: Starting piece iteration");
+        // println!("DEBUG: Starting piece iteration");
         for (square, piece) in &self.pieces {
-            println!("DEBUG: Processing piece at square {square}");
+            // println!("DEBUG: Processing piece at square {square}");
+            // let sq_str: &str = square.as_ref();
             let piece_type_char = piece.get_piece_type_as_char();
             if let Some(piece_type_ref) = PieceType::get_piece_type_data(piece_type_char) {
                 let data: &'static PieceTypeData = piece_type_ref.get_data();
-                println!(
-                    "Key: {}, Value: {:?}, sliding: {}, side: {:?}",
-                    square, piece_type_char, data.sliding, data.side
-                );
-
                 for drctn in Direction::iter() {
-                    let ray_path_opt = generate_ray_path(square, drctn, self.occupied);
-                    match ray_path_opt {
-                        None => {
-                            println!("No ray path from {square}, {drctn:?}");
-                        }
-                        Some(ray_path) => {
-                            let xchngr_opt = Board::extract_pid_seq(self, data, &ray_path, drctn);
-                            match xchngr_opt {
-                                None => {
-                                    println!(
-                                        "No sequence was extracted from {}, {:?}, {}",
-                                        square, drctn, &ray_path
-                                    );
-                                }
-                                Some(xchngrs) => {
-                                    updates.push((square.clone(), drctn, xchngrs));
-                                }
-                            }
+                    if let Some(ray_path) = generate_ray_path(*square, drctn, self.occupied) {
+                        if let Some(xchngrs) = Board::extract_pid_seq(self, data, &ray_path, drctn)
+                        {
+                            updates.push((*square, drctn, xchngrs));
                         }
                     }
                 }
@@ -89,14 +101,14 @@ impl Board {
                 if !xchngrs.is_empty() {
                     piece.exchangers.insert(drctn, xchngrs.clone());
                     // println!("Exchangers: {}, {:?}: {}", square, drctn, &xchngrs);
-                    let xv = piece.exchangers.get(&drctn);
-                    if let Some(v) = xv {
-                        println!("Piece.exchangers: {square}, {drctn:?}: {v}");
-                    } else {
-                        println!("no exchanges on {square} for direction {drctn:?}: {xv:?}");
-                    }
+                    let _xv = piece.exchangers.get(&drctn);
+                    // if let Some(v) = xv {
+                    //     println!("Piece.exchangers: {square}, {drctn:?}: {v}");
+                    // } else {
+                    //     println!("no exchanges on {square} for direction {drctn:?}: {xv:?}");
+                    // }
                 } else {
-                    println!("Zero length xchnger_str on {square} for direction {drctn:?}");
+                    // println!("Zero length xchnger_str on {square} for direction {drctn:?}");
                 }
             }
         }
@@ -128,7 +140,8 @@ impl Board {
 
             while ulmt <= sqid_seq_len {
                 let sq = &sqid_seq[llmt..ulmt];
-                let piece = &self.pieces.get(sq);
+                let square = Square::from_str(sq).unwrap();
+                let piece = &self.pieces.get(&square);
                 match piece {
                     Some(piece) => {
                         let piece_type_char = piece.get_piece_type_as_char();
@@ -220,7 +233,8 @@ impl Board {
 
             while ulmt <= sqid_seq_len {
                 let sq = &sqid_seq[llmt..ulmt];
-                let piece = &self.pieces.get(sq);
+                let square = Square::from_str(sq).unwrap();            
+                let piece = &self.pieces.get(&square);
                 match piece {
                     Some(piece) => {
                         let piece_type_char = piece.get_piece_type_as_char();
@@ -285,25 +299,63 @@ impl Board {
         if !pins.is_empty() { Some(pins) } else { None }
     }
 
-    pub fn get_piece_on(&self, square: &str) -> Option<&Piece> {
-        self.pieces.get(square)
+    pub fn process_move(&self, from: Square, to: Square) -> Option<Board> {
+        // assume a legal move - but some checks anyway
+        if self.is_square_occupied(from) && let Some(piece) = self.get_piece_on(from) {
+            let pchar = piece.get_piece_type_as_char();
+            let pid = format!("{}{}", to, pchar);
+            let mut new_board = self.clone();
+            new_board.remove_piece_from(from);
+            new_board.create_and_place_piece(&pid);
+            return Some(new_board);
+        }
+        None
     }
 
-    pub fn remove_piece_from(&mut self, square: &str) {
-        let piece = self.pieces.remove(square);
+    pub fn assess_move(&self, from: Square, to: Square) -> Option<Board> {
+        // temp mame for intro for efficient exchanger calc
+        // assume a legal move - but some checks anyway
+        if self.is_square_occupied(from) && let Some(piece) = self.get_piece_on(from) {
+            let pchar = piece.get_piece_type_as_char();
+            let mdir = get_direction(from, to);
+            println!("Direction of {from}-{to} is {mdir:?}");
+            let pid = format!("{}{}", to, pchar);
+            let mut new_board = self.clone();
+            new_board.assess_vacated(from);
+            new_board.remove_piece_from(from);
+            new_board.create_and_place_piece(&pid);
+            return Some(new_board);
+        }
+        None
+    }
 
-        if piece.is_some()
-            && let Some(bit) = square_to_bit(square)
-        {
+    pub fn build_new_xchngrs(&mut self) {
+
+    }
+
+    pub fn assess_vacated(&self, sq: Square) {
+        println!(" {sq:?}");
+    }
+
+    pub fn get_piece_on(&self, square: Square) -> Option<&Piece> {
+        // let square = Square::from_str(sq).unwrap();                
+        self.pieces.get(&square)
+    }
+
+    pub fn remove_piece_from(&mut self, sq: Square) {
+        // let square = Square::from_str(sq).unwrap();                
+        let piece = self.pieces.remove(&sq);
+        if piece.is_some() && let Some(bit) = square_to_bit(sq) {
             self.occupied &= !(1u64 << bit);
         }
     }
 
-    pub fn is_square_occupied(&self, square: &str) -> bool {
-        self.pieces.contains_key(square)
+    pub fn is_square_occupied(&self, sq: Square) -> bool {
+        // let square = Square::from_str(sq).unwrap();                
+        self.pieces.contains_key(&sq)
     }
 
-    pub fn iter_pieces(&self) -> std::collections::hash_map::Iter<'_, String, Piece> {
+    pub fn iter_pieces(&self) -> std::collections::hash_map::Iter<'_, Square, Piece> {
         self.pieces.iter()
     }
 
@@ -320,28 +372,35 @@ impl Board {
         self.pieces.is_empty()
     }
 
-    pub fn initialise_custom0(&mut self) {
-        self.create_and_place_piece("a8R");
-        self.create_and_place_piece("b8n");
-        self.create_and_place_piece("d8k");
-        self.create_and_place_piece("d7r");
-        self.create_and_place_piece("f7p");
-        self.create_and_place_piece("f6n");
-        self.create_and_place_piece("d5q");
-        self.create_and_place_piece("e5p");
-        self.create_and_place_piece("g5p");
-        self.create_and_place_piece("c4N");
-        self.create_and_place_piece("d4P");
-        self.create_and_place_piece("f4N");
-        self.create_and_place_piece("b3P");
-        self.create_and_place_piece("d3r");
-        self.create_and_place_piece("f3p");
-        self.create_and_place_piece("h3K");
-        self.create_and_place_piece("a2B");
-        self.create_and_place_piece("e2P");
+    pub fn init_custom_from(&mut self) {
+        self.occupied = 0;
+        self.create_and_place_piece("e1K");
+        self.create_and_place_piece("e2Q");
+        self.create_and_place_piece("e3R");
+        self.create_and_place_piece("e4R");
+        self.create_and_place_piece("e5P");
+        self.create_and_place_piece("e6r");
+        self.create_and_place_piece("e7r");
+        self.create_and_place_piece("e8q");
+        self.create_and_place_piece("f8k");
+        self.create_and_place_piece("f6p");
     }
 
-    pub fn initialise_custom1(&mut self) {
+    pub fn init_custom_to(&mut self) {
+        self.occupied = 0;
+        self.create_and_place_piece("e1K");
+        self.create_and_place_piece("e2Q");
+        self.create_and_place_piece("e3R");
+        self.create_and_place_piece("e4R");
+        // self.create_and_place_piece("e5P");
+        self.create_and_place_piece("e6r");
+        self.create_and_place_piece("e7r");
+        self.create_and_place_piece("e8q");
+        self.create_and_place_piece("f8k");
+        self.create_and_place_piece("f6P");
+    }
+
+    pub fn init_custom1(&mut self) {
         self.create_and_place_piece("f7R");
         self.create_and_place_piece("e6p");
         self.create_and_place_piece("a5r");
@@ -355,7 +414,7 @@ impl Board {
         self.create_and_place_piece("a1k");
     }
 
-    pub fn initialise_standard(&mut self) {
+    pub fn init_standard(&mut self) {
         // White pieces
         self.create_and_place_piece("a1R");
         self.create_and_place_piece("b1N");
@@ -401,7 +460,7 @@ impl Board {
         println!("Occupied squares (from bitboard):");
         for bit in 0..64 {
             if (self.occupied & (1u64 << bit)) != 0
-                && let Some(square) = bit_to_square(bit)
+                && let Some(square) = bit_to_string_square(bit)
             {
                 println!("-{square}");
             }

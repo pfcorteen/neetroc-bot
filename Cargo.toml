@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+compiler_builtins = "0.1.160"
 lazy_static = "1.4.0"
 regex = "1"
 strum = { version = "0.26", features = ["derive"] }

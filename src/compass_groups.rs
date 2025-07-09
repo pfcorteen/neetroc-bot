@@ -1,7 +1,5 @@
 use strum_macros::EnumIter;
-//use strum::IntoEnumIterator;
-
-// Define the groupings of direction numbers (0 to 15)
+use crate::board::{Square};
 
 #[derive(Debug, EnumIter, PartialEq, Eq, Hash, Copy, Clone)] // These are useful traits to derive
 pub enum Direction { N, NNE, NE, ENE, E, ESE, SE, SSE, S, SSW, SW, WSW, W, WNW, NW, NNW }
@@ -43,4 +41,69 @@ lazy_static! {
         = [Direction::E,Direction::W].to_vec();
     pub static ref VERTICALS: Vec<Direction> 
         = [Direction::N,Direction::S].to_vec();
+}
+
+pub fn get_direction(from: Square, to: Square) -> Option<Direction> {
+    fn parse_square(square: &str) -> Option<(isize, isize)> {
+        let mut chars = square.chars();
+        let file_char = chars.next()?;
+        let rank_char = chars.next()?;
+    
+        if chars.next().is_some()
+            || !file_char.is_ascii_alphabetic()
+                || !rank_char.is_ascii_digit() {
+            return None;
+        }
+    
+        let file = (file_char.to_ascii_lowercase() as isize) - ('a' as isize);
+        let rank = (rank_char.to_digit(10)? as isize) - 1;
+    
+        if (0..=7).contains(&file) && (0..=7).contains(&rank) {
+            Some((file, rank))
+        } else {
+            None
+        }
+    }
+    
+    let from_str: &str = from.as_ref();
+    let to_str: &str = to.as_ref();
+
+    let (from_file, from_rank) = parse_square(from_str)?;
+    let (to_file, to_rank) = parse_square(to_str)?;
+
+    let file_diff = to_file - from_file;
+    let rank_diff = to_rank - from_rank;
+
+    // Use a match statement to handle all move vectors.
+    let direction = match (file_diff, rank_diff) {
+        // --- Knight Moves (Half-Winds) ---
+        (1, 2) => Direction::NNE,
+        (2, 1) => Direction::ENE,
+        (2, -1) => Direction::ESE,
+        (1, -2) => Direction::SSE,
+        (-1, -2) => Direction::SSW,
+        (-2, -1) => Direction::WSW,
+        (-2, 1) => Direction::WNW,
+        (-1, 2) => Direction::NNW,
+
+        // --- Standard Linear & Diagonal Moves ---
+        (file_diff, rank_diff)
+            if file_diff.abs() == rank_diff.abs() || file_diff == 0 || rank_diff == 0 => {
+                match (file_diff.signum(), rank_diff.signum()) {
+                    (0, 1) => Direction::N,
+                    (1, 1) => Direction::NE,
+                    (1, 0) => Direction::E,
+                    (1, -1) => Direction::SE,
+                    (0, -1) => Direction::S,
+                    (-1, -1) => Direction::SW,
+                    (-1, 0) => Direction::W,
+                    (-1, 1) => Direction::NW,
+                    _ => return None,
+                }
+        }
+
+        // All other moves are indeterminate.
+        _ => return None,
+    };
+    Some(direction)
 }

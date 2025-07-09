@@ -1,29 +1,28 @@
 // src/OccupiedSquare.rs
+use crate::board::{Square};
 use crate::compass_groups::{Direction, HALF_WINDS};
-use regex::Regex; // You might want to move this here if only used here
-
+use regex::Regex;
+use std::str::FromStr;
 
 pub static FILES: &str = "abcdefgh";
 pub static RANKS: &str = "12345678";
+
 // Function to convert a square string (e.g., "a1") to a bit position (0-63)
-pub fn square_to_bit(square: &str) -> Option<u64> {
-    if square.len() != 2 {
-        return None;
-    }
-
+pub fn square_to_bit(square: Square) -> Option<u64> {
+    let sq = format!("{square}");
     let square_regex = Regex::new(r"^[a-h][1-8]$").unwrap();
-    if !square_regex.is_match(square) {
+    if !square_regex.is_match(&sq) {
         return None;
     }
 
-    let file = square.chars().next().unwrap() as u8 - b'a';
-    let rank = square.chars().nth(1).unwrap() as u8 - b'1';
+    let file = sq.chars().next().unwrap() as u8 - b'a';
+    let rank = sq.chars().nth(1).unwrap() as u8 - b'1';
 
     Some((rank * 8 + file) as u64)
 }
 
 // Function to convert a bit position (0-63) back to a square string (e.g., "a1")
-pub fn bit_to_square(bit: u64) -> Option<String> {
+pub fn bit_to_string_square(bit: u64) -> Option<String> {
     if bit > 63 {
         return None;
     }
@@ -38,11 +37,12 @@ pub fn print_ray_string(origin: &str, direction: Direction, ray: &str) {
     println!("{origin} {direction:?} ray: {ray}");
 }
 
-pub fn generate_ray_path(origin: &str, direction: Direction, occupied: u64) -> Option<String> {
+pub fn generate_ray_path(square: Square, direction: Direction, occupied: u64) -> Option<String> {
+    let origin = format!("{square}");
     let mut empty_count: u8 = 0; // Changed from usize to u8
     let mut path = String::new();
 
-    if let Some(start_bit) = square_to_bit(origin) {
+    if let Some(start_bit) = square_to_bit(square) {
         let mut current_bit = start_bit;
         let (shift, edge_check): (i8, Box<dyn Fn(u64) -> bool>) = match direction {
             Direction::N => (8, Box::new(|b| b <= 55)),
@@ -74,7 +74,7 @@ pub fn generate_ray_path(origin: &str, direction: Direction, occupied: u64) -> O
                     empty_count = 0;
                     underscore_available = false;
                 }
-                if let Some(square_string) = &bit_to_square(next_bit) {
+                if let Some(square_string) = &bit_to_string_square(next_bit) {
                     path.push_str(square_string);
                     underscore_available = false;
                 }
@@ -111,19 +111,25 @@ pub fn get_next_sqid(osqid: &str, drctn: Direction) -> Option<String> {
             if let Some(rlmt) = rlmt_opt {
                 let ridx_opt: Option<usize> = RANKS.find(sqid_rank);
                 let ridx: i8 = ridx_opt.unwrap() as i8;
+                // let ridx = (rank.to_digit(10)? as i8) - 1;
                 if ridx == rlmt {
                     return None; // too close to edge of board
                 }
                 rank = RANKS.chars().nth((ridx + roffset) as usize).unwrap();
+                // let new_ridx = ridx.checked_add_signed(roffset)?;
+                // rank = new_ridx as char;
             } // None of rlmt -> use default rank
 
             if let Some(flmt) = flmt_opt {
                 let fidx_opt: Option<usize> = FILES.find(sqid_file);
                 let fidx: i8 = fidx_opt.unwrap() as i8;
+                // let fidx = (file.to_ascii_lowercase() as u8) - ('a' as u8);
                 if fidx == flmt {
                     return None; // too close to edge of board
                 }
                 file = FILES.chars().nth((fidx + foffset) as usize).unwrap();
+                // let new_fidx = fidx.checked_add_signed(foffset)?;
+                // file = new_fidx as char;
             } // None of flmt -> use default file
 
             let sqid = [file, rank];
@@ -157,10 +163,10 @@ mod tests {
 
     #[test]
     fn test_piece_moves() {
-        let tsq = "a1";
+        let tsq = "a7";
         let sq_opt = get_next_sqid(tsq, Direction::N);
         if let Some(sq) = sq_opt {
-            assert!(sq == "a2");
+            assert!(sq == "a8");
         } else {
             println!("{sq_opt:?} was None");
         }
@@ -184,21 +190,24 @@ mod tests {
         println!("Entered test_knight_movements");
 
         let mut bit_board = 0u64;
-        let squares = [
-            "a1", "b3", "c2", "a8", "b6", "c7", "h1", "f2", "g3", "h8", "f7", "g6", "a4", "a5",
-            "h4", "h5", "d1", "e1", "d8", "e8",
+        let sqs = [
+            "a1", "b3", "c2", "a8", "b6", "c7", "h1", "f2", "g3", "h8",
+            "f7", "g6", "a4", "a5", "h4", "h5", "d1", "e1", "d8", "e8",
         ];
         let mut path_count = 0;
         let mut none_count = 0;
 
-        for sq in squares {
-            if let Some(bit) = square_to_bit(sq) {
+        for sq in sqs {
+            let square = Square::from_str(sq).unwrap();            
+            if let Some(bit) = square_to_bit(square) {
                 bit_board |= 1u64 << bit;
             }
         }
-        for sq in squares {
+
+        for sq in sqs {
+            let square = Square::from_str(sq).unwrap();            
             for drctn in HALF_WINDS.iter() {
-                let path_opt = generate_ray_path(sq, *drctn, bit_board);
+                let path_opt = generate_ray_path(square, *drctn, bit_board);
                 match path_opt {
                     None => {
                         none_count += 1;
@@ -223,15 +232,17 @@ mod tests {
         should_succeed: bool,
     ) {
         let mut occupied = 0u64;
-        // Set both origin and target as occupied
-        if let Some(origin_bit) = square_to_bit(origin) {
+        let from_square = Square::from_str(origin).unwrap();            
+        let to_square = Square::from_str(expected_target).unwrap();            
+
+        if let Some(origin_bit) = square_to_bit(from_square) {
             occupied |= 1u64 << origin_bit;
         }
-        if let Some(target_bit) = square_to_bit(expected_target) {
+        if let Some(target_bit) = square_to_bit(to_square) {
             occupied |= 1u64 << target_bit;
         }
 
-        let path_opt = generate_ray_path(origin, direction, occupied);
+        let path_opt = generate_ray_path(from_square, direction, occupied);
         match path_opt {
             None => {
                 println!("No ray path for {origin} {direction:?} to {expected_target}");
