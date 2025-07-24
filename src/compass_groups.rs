@@ -1,7 +1,9 @@
 use strum_macros::EnumIter;
 use crate::board::{Square};
+use strum::{AsRefStr, Display, EnumString};
 
-#[derive(Debug, EnumIter, PartialEq, Eq, Hash, Copy, Clone)] // These are useful traits to derive
+#[derive(Debug, EnumIter, PartialEq, Eq, Hash, Copy, Clone, )] // These are useful traits to derive
+#[derive(Display, AsRefStr, EnumString)]
 pub enum Direction { N, NNE, NE, ENE, E, ESE, SE, SSE, S, SSW, SW, WSW, W, WNW, NW, NNW }
 
 impl Direction {
@@ -42,6 +44,17 @@ lazy_static! {
     pub static ref VERTICALS: Vec<Direction> 
         = [Direction::N,Direction::S].to_vec();
 }
+
+pub const DIRECTION_PAIRS: [(Direction, Direction); 8] = [
+    (Direction::N, Direction::S),
+    (Direction::NNE, Direction::SSW),
+    (Direction::NE, Direction::SW),
+    (Direction::ENE, Direction::WSW),
+    (Direction::E, Direction::W),
+    (Direction::ESE, Direction::WNW),
+    (Direction::SE, Direction::NW),
+    (Direction::SSE, Direction::NNW),
+];
 
 pub fn get_direction(from: Square, to: Square) -> Option<Direction> {
     fn parse_square(square: &str) -> Option<(isize, isize)> {

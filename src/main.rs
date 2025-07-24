@@ -1,4 +1,4 @@
-use neetroc_bot::{board::Board};
+use neetroc_bot::board::Board;
 use neetroc_bot::board::Square::*;
 
 fn main() {
@@ -9,15 +9,15 @@ fn main() {
     println!("Main board has {} pieces", board.len());
     println!("Main board: {board:?}"); // NNB too heavy for debug runs
 
-    if let Some(mut next_board) = board.process_move(e5, f6) {
+    if let Some(mut next_board) = board.full_process_move(e5, f6) {
         next_board.build_all_xchngrs();
         println!("Next board has {} pieces", next_board.len());
         println!("Next board: {next_board:?}"); // NNB too heavy for debug runs
     }
 
-    if let Some(mut prpsed_board) = board.assess_move(e5, f6) {
-        prpsed_board.build_new_xchngrs();
-        println!("Proposed board has {} pieces", prpsed_board.len());
+    if let Some(prpsd_board) = board.process_move(e5, f6) {
+        // prpsd_board.build_new_xchngrs();
+        println!("Proposed board has {} pieces", prpsd_board.len());
         // println!("Proposed board: {prpsed_board:?}"); NNB too heavy for debug runs
     }
 
@@ -43,5 +43,5 @@ fn main() {
     //             println!("{drctn:?} from {tsq} = {sq_opt:?}, {answr:?}");
     //         }
     //     }
-    // }    
+    // }
 }

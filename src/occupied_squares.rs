@@ -8,17 +8,13 @@ pub static FILES: &str = "abcdefgh";
 pub static RANKS: &str = "12345678";
 
 // Function to convert a square string (e.g., "a1") to a bit position (0-63)
-pub fn square_to_bit(square: Square) -> Option<u64> {
+pub fn square_to_bit(square: Square) -> u64 {
     let sq = format!("{square}");
-    let square_regex = Regex::new(r"^[a-h][1-8]$").unwrap();
-    if !square_regex.is_match(&sq) {
-        return None;
-    }
-
+    // let square_regex = Regex::new(r"^[a-h][1-8]$");
     let file = sq.chars().next().unwrap() as u8 - b'a';
     let rank = sq.chars().nth(1).unwrap() as u8 - b'1';
 
-    Some((rank * 8 + file) as u64)
+    (rank * 8 + file) as u64
 }
 
 // Function to convert a bit position (0-63) back to a square string (e.g., "a1")
@@ -38,58 +34,55 @@ pub fn print_ray_string(origin: &str, direction: Direction, ray: &str) {
 }
 
 pub fn generate_ray_path(square: Square, direction: Direction, occupied: u64) -> Option<String> {
-    let origin = format!("{square}");
+    // let origin = format!("{square}");
     let mut empty_count: u8 = 0; // Changed from usize to u8
     let mut path = String::new();
 
-    if let Some(start_bit) = square_to_bit(square) {
-        let mut current_bit = start_bit;
-        let (shift, edge_check): (i8, Box<dyn Fn(u64) -> bool>) = match direction {
-            Direction::N => (8, Box::new(|b| b <= 55)),
-            Direction::NNE => (17, Box::new(|b| b <= 46 && (b % 8) != 7)),
-            Direction::NE => (9, Box::new(|b| b <= 54 && (b % 8) != 7)),
-            Direction::ENE => (10, Box::new(|b| b <= 53 && (b % 8) < 6)),
-            Direction::E => (1, Box::new(|b| b <= 62 && (b % 8) != 7)),
-            Direction::ESE => (-6, Box::new(|b| b >= 8 && (b % 8) < 6)),
-            Direction::SE => (-7, Box::new(|b| b >= 8 && (b % 8) != 7)),
-            Direction::SSE => (-15, Box::new(|b| b >= 16 && (b % 8) != 7)),
+    let start_bit = square_to_bit(square);
+    let mut current_bit = start_bit;
+    let (shift, edge_check): (i8, Box<dyn Fn(u64) -> bool>) = match direction {
+        Direction::N => (8, Box::new(|b| b <= 55)),
+        Direction::NNE => (17, Box::new(|b| b <= 46 && (b % 8) != 7)),
+        Direction::NE => (9, Box::new(|b| b <= 54 && (b % 8) != 7)),
+        Direction::ENE => (10, Box::new(|b| b <= 53 && (b % 8) < 6)),
+        Direction::E => (1, Box::new(|b| b <= 62 && (b % 8) != 7)),
+        Direction::ESE => (-6, Box::new(|b| b >= 8 && (b % 8) < 6)),
+        Direction::SE => (-7, Box::new(|b| b >= 8 && (b % 8) != 7)),
+        Direction::SSE => (-15, Box::new(|b| b >= 16 && (b % 8) != 7)),
 
-            // Direction::SSE => (-15, Box::new(|b| b >= 16 && (b % 8) < 8)),
-            Direction::S => (-8, Box::new(|b| b >= 8)),
-            Direction::SSW => (-17, Box::new(|b| b >= 17 && (b % 8) != 0)),
-            Direction::SW => (-9, Box::new(|b| b >= 8 && (b % 8) != 0)),
-            Direction::WSW => (-10, Box::new(|b| b >= 10 && (b % 8) > 1)),
-            Direction::W => (-1, Box::new(|b| (b % 8) != 0)),
-            Direction::WNW => (6, Box::new(|b| b <= 55 && (b % 8) > 1)),
-            Direction::NW => (7, Box::new(|b| b <= 55 && (b % 8) != 0)),
-            Direction::NNW => (15, Box::new(|b| b <= 47 && (b % 8) != 0)),
-        };
+        // Direction::SSE => (-15, Box::new(|b| b >= 16 && (b % 8) < 8)),
+        Direction::S => (-8, Box::new(|b| b >= 8)),
+        Direction::SSW => (-17, Box::new(|b| b >= 17 && (b % 8) != 0)),
+        Direction::SW => (-9, Box::new(|b| b >= 8 && (b % 8) != 0)),
+        Direction::WSW => (-10, Box::new(|b| b >= 10 && (b % 8) > 1)),
+        Direction::W => (-1, Box::new(|b| (b % 8) != 0)),
+        Direction::WNW => (6, Box::new(|b| b <= 55 && (b % 8) > 1)),
+        Direction::NW => (7, Box::new(|b| b <= 55 && (b % 8) != 0)),
+        Direction::NNW => (15, Box::new(|b| b <= 47 && (b % 8) != 0)),
+    };
 
-        let mut underscore_available = true;
-        while edge_check(current_bit) {
-            let next_bit = (current_bit as i64 + shift as i64) as u64;
-            if (occupied & (1u64 << next_bit)) != 0 {
-                if empty_count > 0 && underscore_available {
-                    path.push('_');
-                    empty_count = 0;
-                    underscore_available = false;
-                }
-                if let Some(square_string) = &bit_to_string_square(next_bit) {
-                    path.push_str(square_string);
-                    underscore_available = false;
-                }
-            } else {
-                empty_count += 1;
+    let mut underscore_available = true;
+    while edge_check(current_bit) {
+        let next_bit = (current_bit as i64 + shift as i64) as u64;
+        if (occupied & (1u64 << next_bit)) != 0 {
+            if empty_count > 0 && underscore_available {
+                path.push('_');
+                empty_count = 0;
+                underscore_available = false;
             }
-
-            current_bit = next_bit;
-
-            if HALF_WINDS.contains(&direction) {
-                break;
+            if let Some(square_string) = &bit_to_string_square(next_bit) {
+                path.push_str(square_string);
+                underscore_available = false;
             }
+        } else {
+            empty_count += 1;
         }
-    } else {
-        return None;
+
+        current_bit = next_bit;
+
+        if HALF_WINDS.contains(&direction) {
+            break;
+        }
     }
 
     if !path.is_empty() { Some(path) } else { None }
@@ -199,9 +192,8 @@ mod tests {
 
         for sq in sqs {
             let square = Square::from_str(sq).unwrap();            
-            if let Some(bit) = square_to_bit(square) {
-                bit_board |= 1u64 << bit;
-            }
+            let bit = square_to_bit(square);
+            bit_board |= 1u64 << bit;
         }
 
         for sq in sqs {
@@ -235,12 +227,11 @@ mod tests {
         let from_square = Square::from_str(origin).unwrap();            
         let to_square = Square::from_str(expected_target).unwrap();            
 
-        if let Some(origin_bit) = square_to_bit(from_square) {
-            occupied |= 1u64 << origin_bit;
-        }
-        if let Some(target_bit) = square_to_bit(to_square) {
-            occupied |= 1u64 << target_bit;
-        }
+        let origin_bit = square_to_bit(from_square);
+        occupied |= 1u64 << origin_bit;
+        
+        let target_bit = square_to_bit(to_square);
+        occupied |= 1u64 << target_bit;
 
         let path_opt = generate_ray_path(from_square, direction, occupied);
         match path_opt {

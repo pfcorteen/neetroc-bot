@@ -168,8 +168,9 @@ impl PieceType {
         }
     }
 
-    pub fn get_piece_type_data(c: char) -> Option<&'static PieceType> {
-        match c {
+    // pub fn get_piece_type_data(c: char) -> Option<&'static PieceType> {
+    pub fn get_piece_type(c: char) -> Option<&'static PieceType> {
+            match c {
             'K' => Some(&PieceType::WhiteKing),
             'k' => Some(&PieceType::BlackKing),
             'Q' => Some(&PieceType::WhiteQueen),
@@ -202,6 +203,15 @@ impl Piece {
             })
         } else {
             None
+        }
+    }
+    pub fn get_piece_data(&self) -> &'static PieceTypeData {
+        let piece_type_char = self.get_piece_type_as_char();
+        let piece_type_ref = PieceType::get_piece_type(piece_type_char);
+        if let Some(piece_type) = piece_type_ref {
+            piece_type.get_data()
+        } else {
+            panic!("Invalid piece type")
         }
     }
     pub fn get_pid(&self) -> &str {

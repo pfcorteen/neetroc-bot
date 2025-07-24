@@ -4,10 +4,9 @@ use crate::pieces::BasicPieceType;
 use crate::pieces::Piece;
 use crate::pieces::PieceType;
 use crate::pieces::PieceTypeData;
+use crate::CARDINALS;
 use std::collections::HashMap;
 use strum::{EnumIter, IntoEnumIterator};
-
-// use std::fmt::Display;
 use std::str::FromStr;
 use strum::{AsRefStr, Display, EnumString};
 
@@ -58,17 +57,16 @@ impl Board {
 
     pub fn create_and_place_piece(&mut self, piece_identifier: &str) {
         if let Some(piece) = Piece::new(piece_identifier) {
-            let sq = &piece_identifier[0..2].to_string();
+            let sq = &piece_identifier[0..2];
             let square = Square::from_str(sq).unwrap();
             self.pieces.insert(square, piece);
 
-            if let Some(bit) = square_to_bit(square) {
-                self.occupied |= 1u64 << bit;
-            }
+            let bit = square_to_bit(square);
+            self.occupied |= 1u64 << bit;
         } else {
             println!(
                 "Unable to create piece with identifier: {}.",
-                &piece_identifier.to_string()
+                piece_identifier
             );
         }
     }
@@ -83,8 +81,8 @@ impl Board {
             // println!("DEBUG: Processing piece at square {square}");
             // let sq_str: &str = square.as_ref();
             let piece_type_char = piece.get_piece_type_as_char();
-            if let Some(piece_type_ref) = PieceType::get_piece_type_data(piece_type_char) {
-                let data: &'static PieceTypeData = piece_type_ref.get_data();
+            if let Some(piece_type) = PieceType::get_piece_type(piece_type_char) {
+                let data: &'static PieceTypeData = piece_type.get_data();
                 for drctn in Direction::iter() {
                     if let Some(ray_path) = generate_ray_path(*square, drctn, self.occupied) {
                         if let Some(xchngrs) = Board::extract_pid_seq(self, data, &ray_path, drctn)
@@ -145,8 +143,7 @@ impl Board {
                 match piece {
                     Some(piece) => {
                         let piece_type_char = piece.get_piece_type_as_char();
-                        if let Some(piece_type_ref) =
-                            PieceType::get_piece_type_data(piece_type_char)
+                        if let Some(piece_type_ref) = PieceType::get_piece_type(piece_type_char)
                         {
                             let data: &'static PieceTypeData = piece_type_ref.get_data();
                             let pid = piece.get_pid();
@@ -238,10 +235,10 @@ impl Board {
                 match piece {
                     Some(piece) => {
                         let piece_type_char = piece.get_piece_type_as_char();
-                        if let Some(piece_type_ref) =
-                            PieceType::get_piece_type_data(piece_type_char)
+                        if let Some(piece_type) =
+                            PieceType::get_piece_type(piece_type_char)
                         {
-                            let piece_data: &'static PieceTypeData = piece_type_ref.get_data();
+                            let piece_data: &'static PieceTypeData = piece_type.get_data();
                             let pid = piece.get_pid();
 
                             if !pin_candidate_found {
@@ -299,42 +296,161 @@ impl Board {
         if !pins.is_empty() { Some(pins) } else { None }
     }
 
+    pub fn full_process_move(&self, from: Square, to: Square) -> Option<Board> {
+        // assume a legal move - but some checks anyway
+        // if self.is_square_occupied(from) && let Some(piece) = self.get_piece_on(from) {
+        let piece = self.get_piece_on(from)?;
+        let pchar = piece.get_piece_type_as_char();
+        let pid = format!("{}{}", to, pchar);
+        let mut new_board = self.clone();
+        println!("Fully processed move '{from}-{to}', with pid '{pid}'");
+        // new_board.assess_vacated(from, to);
+        new_board.remove_piece_from(from);
+        new_board.create_and_place_piece(&pid);
+        return Some(new_board);
+    }
+
     pub fn process_move(&self, from: Square, to: Square) -> Option<Board> {
         // assume a legal move - but some checks anyway
-        if self.is_square_occupied(from) && let Some(piece) = self.get_piece_on(from) {
-            let pchar = piece.get_piece_type_as_char();
-            let pid = format!("{}{}", to, pchar);
-            let mut new_board = self.clone();
-            new_board.remove_piece_from(from);
-            new_board.create_and_place_piece(&pid);
-            return Some(new_board);
+        // if self.is_square_occupied(from) && let Some(piece) = self.get_piece_on(from) {
+        let piece = self.get_piece_on(from)?;
+        let pchar = piece.get_piece_type_as_char();
+        let pid = format!("{}{}", to, pchar);
+        let mut prpsd_board = self.clone();
+        println!("Processing move '{from}-{to}', with pid '{pid}'");
+        prpsd_board.assess_vacated(from, to);
+        prpsd_board.remove_piece_from(from);
+        prpsd_board.create_and_place_piece(&pid);
+        return Some(prpsd_board);
+    }
+
+    pub fn assess_vacated(&mut self, from: Square, to: Square) -> Option<Board> {
+        let piece = self.get_piece_on(from)?;
+        let pchar = piece.get_piece_type_as_char();
+        let mdir_opt = get_direction(from, to);
+        println!("Direction of {from}-{to} is {mdir_opt:?}");
+        let pid = format!("{}{}", to, pchar);
+        let mut used_opposites: Vec<Direction> = Vec::new();
+        // First pass: collect all (Square, Direction) pairs to update
+        let ex_data: Vec<(Direction, String, Option<String>)> = piece
+            .exchangers
+            .iter()
+            .map(|(d, s)| {
+                let od = d.opposite();
+                let opt_ref = piece.exchangers.get(&od).cloned();
+                (*d, s.clone(), opt_ref)
+            })
+            .collect();
+        let mut xr_updates: Vec<(Square, Direction, Option<String>)> = Vec::new();
+        let mut transfer_exchangers = 
+                    |updater: &mut Vec<(Square, Direction, Option<String>)>,
+                    opp_dir: Direction, xrs: &String, opp_xrs: &String| {
+            let pattern_len = 3;
+            for (i, _char_chunk) in xrs.char_indices().step_by(pattern_len) {
+                if let Some(chunk) = xrs.get(i..(i + pattern_len)) {
+                    // println!("d chunk: {}", chunk);
+                    let od_sq = Square::from_str(&chunk[0..=1]).unwrap();
+                    let od_piece = self.pieces.get_mut(&od_sq).expect("Expected a piece to exist at the given square"); // Fixed logic problem if None
+                    let od_piece_data = od_piece.get_piece_data();
+                    // println!("piece: {od_piece:?}, date: {od_piece_data:?}");
+                    if od_piece_data.sliding == false {
+                        updater.push((od_sq, opp_dir, Some(opp_xrs.clone())));
+                        break;
+                    } else {
+                        if let Some(exstng_xrs) = od_piece.exchangers.get(&opp_dir) {
+                            updater.push((od_sq, opp_dir, Some(exstng_xrs.to_string() + &opp_xrs.clone())));
+                        } else {
+                            updater.push((od_sq, opp_dir, Some(opp_xrs.clone())));                                            
+                        }
+                    }
+                }
+            }
+        };
+
+        for (d, d_xrs, od_opt_ref) in &ex_data {
+            let od = d.opposite();
+            if !used_opposites.contains(d) {
+                match od_opt_ref {
+                    Some(od_xrs) => {
+                        // let od_xs = od_xs_opt.as_ref();
+                        if HALF_WINDS.contains(d) {
+                            let d_sq = Square::from_str(&d_xrs[0..=1]).unwrap();
+                            let od_sq = Square::from_str(&od_xrs[0..=1]).unwrap();
+                            xr_updates.push((d_sq, *d, None));
+                            xr_updates.push((od_sq, od, None));
+                        } else if CARDINALS.contains(d) {
+                            // ultimately there may be no reason to process CARDINALS seperately from ORDINALS
+                            transfer_exchangers(&mut xr_updates, od, d_xrs, od_xrs);
+                            transfer_exchangers(&mut xr_updates, *d, od_xrs, d_xrs);
+
+                            // let pattern_len = 3;
+                            // for (i, _char_chunk) in d_xrs.char_indices().step_by(pattern_len) {
+                            //     if let Some(chunk) = d_xrs.get(i..(i + pattern_len)) {
+                            //         println!("d chunk: {}", chunk);
+                            //         let od_sq = Square::from_str(&chunk[0..=1]).unwrap();
+                            //         let od_piece = self.pieces.get_mut(&od_sq)?; // Logic problem if None
+                            //         let od_piece_data = od_piece.get_piece_data();
+                            //         println!("piece: {od_piece:?}, date: {od_piece_data:?}");
+                            //         if od_piece_data.sliding == false {
+                            //             to_update.push((od_sq, od, Some(od_xrs.clone())));
+                            //             break;
+                            //         } else {
+                            //             if let Some(exstng_xrs) = od_piece.exchangers.get(&od) {
+                            //                 to_update.push((od_sq, od, Some(exstng_xrs.to_string() + &od_xrs.clone())));
+                            //             } else {
+                            //                 to_update.push((od_sq, od, Some(od_xrs.clone())));                                           
+                            //             }
+                            //         }
+                            //     }
+                            // }          
+                        }
+                        
+                        
+                        //     else { // ORDINALS
+                        // }
+
+                        used_opposites.push(od);
+                    }
+                    None => {
+                        println!("No opposite exchangers for direction {od:?}");
+                    }
+                }
+                // if od_xs_opt.is_some() {
+
+                // }
+            }
         }
-        None
-    }
 
-    pub fn assess_move(&self, from: Square, to: Square) -> Option<Board> {
-        // temp mame for intro for efficient exchanger calc
-        // assume a legal move - but some checks anyway
-        if self.is_square_occupied(from) && let Some(piece) = self.get_piece_on(from) {
-            let pchar = piece.get_piece_type_as_char();
-            let mdir = get_direction(from, to);
-            println!("Direction of {from}-{to} is {mdir:?}");
-            let pid = format!("{}{}", to, pchar);
-            let mut new_board = self.clone();
-            new_board.assess_vacated(from);
-            new_board.remove_piece_from(from);
-            new_board.create_and_place_piece(&pid);
-            return Some(new_board);
+        // Second pass: perform mutations
+        for (sq, dir, xrs_opt) in xr_updates {
+            if let Some(rpiece) = self.pieces.get_mut(&sq) {
+                match xrs_opt {
+                    None => {
+
+                        rpiece.exchangers.remove(&dir);
+                        println!("Square: {}, pid: {} removed exchangers in direction: {}, retaining exchangers: {:?}",
+                                    sq, rpiece.pid, dir, rpiece.exchangers);
+                    }
+                    Some (xrs) => {
+                        rpiece.exchangers.insert(dir, xrs);
+                        // println!("Square: {}, pid: {}, updated exchangers in direction: {} to {:?}",
+                        //             sq, rpiece.pid, dir, rpiece.exchangers);
+                        println!("Square: {}, pid: {}, updated exchangers: {:?}",
+                        sq, rpiece.pid, rpiece.exchangers);                 
+                    }
+                }
+
+            }
         }
-        None
+        let mut new_board = self.clone();
+        new_board.remove_piece_from(from);
+        new_board.create_and_place_piece(&pid);
+        return Some(new_board);
     }
 
-    pub fn build_new_xchngrs(&mut self) {
+    pub fn update_xchngr(&self, xchngr: String, drctn: Direction, val: Option<String>) {
+        println!("xchngr: {xchngr}, drctn: {drctn}, val: {val:?}")
 
-    }
-
-    pub fn assess_vacated(&self, sq: Square) {
-        println!(" {sq:?}");
     }
 
     pub fn get_piece_on(&self, square: Square) -> Option<&Piece> {
@@ -344,8 +460,8 @@ impl Board {
 
     pub fn remove_piece_from(&mut self, sq: Square) {
         // let square = Square::from_str(sq).unwrap();                
-        let piece = self.pieces.remove(&sq);
-        if piece.is_some() && let Some(bit) = square_to_bit(sq) {
+        if let Some(_piece) = self.pieces.remove(&sq) {
+            let bit = square_to_bit(sq);
             self.occupied &= !(1u64 << bit);
         }
     }
@@ -378,7 +494,12 @@ impl Board {
         self.create_and_place_piece("e2Q");
         self.create_and_place_piece("e3R");
         self.create_and_place_piece("e4R");
+
+        self.create_and_place_piece("c6N");
         self.create_and_place_piece("e5P");
+        self.create_and_place_piece("g4n");
+
+
         self.create_and_place_piece("e6r");
         self.create_and_place_piece("e7r");
         self.create_and_place_piece("e8q");
