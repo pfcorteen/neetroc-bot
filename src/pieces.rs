@@ -4,6 +4,8 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::sync::LazyLock as Lazy;
 use std::vec::Vec;
+use std::fmt;
+use strum::IntoEnumIterator;
 
 #[derive(Debug, PartialEq)]
 pub enum Side {
@@ -228,5 +230,22 @@ impl Piece {
             true => Side::White,
             _ => Side::Black,
         }
+    }
+}
+
+impl fmt::Display for Piece {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} |", self.pid)?;
+        let mut xchngr_strs = Vec::new();
+        for dir in Direction::iter() {
+            if let Some(xchngrs) = self.exchangers.get(&dir) {
+                xchngr_strs.push(format!("{}:{}", dir.as_ref(), xchngrs));
+            }
+        }
+        let exch_joined = xchngr_strs.join(", ");
+        if !exch_joined.is_empty() {
+            write!(f, " {}", exch_joined)?;
+        }
+        Ok(())
     }
 }

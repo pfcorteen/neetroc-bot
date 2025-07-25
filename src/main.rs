@@ -7,17 +7,19 @@ fn main() {
     board.init_custom_from();
     board.build_all_xchngrs();
     println!("Main board has {} pieces", board.len());
-    println!("Main board: {board:?}"); // NNB too heavy for debug runs
+    println!("Main board:");
+    println!("{}", board); // NNB too heavy for debug runs
 
     if let Some(mut next_board) = board.full_process_move(e5, f6) {
         next_board.build_all_xchngrs();
         println!("Next board has {} pieces", next_board.len());
-        println!("Next board: {next_board:?}"); // NNB too heavy for debug runs
+        println!("Next board:");
+        println!("{}", next_board); // NNB too heavy for debug runs
     }
 
-    if let Some(prpsd_board) = board.process_move(e5, f6) {
+    if let Some(prpsd_board) = board.pre_processed_move(e5, f6) {
         // prpsd_board.build_new_xchngrs();
-        println!("Proposed board has {} pieces", prpsd_board.len());
+        println!("pre_processed_move board has {} pieces", prpsd_board.len());
         // println!("Proposed board: {prpsed_board:?}"); NNB too heavy for debug runs
     }
 

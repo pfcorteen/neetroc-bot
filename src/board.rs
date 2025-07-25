@@ -9,6 +9,8 @@ use std::collections::HashMap;
 use strum::{EnumIter, IntoEnumIterator};
 use std::str::FromStr;
 use strum::{AsRefStr, Display, EnumString};
+use std::fmt::Write; // for write! macro
+use std::fmt;
 
 #[derive(Debug, EnumIter, PartialEq, Eq, Hash, Copy, Clone)] // These are useful traits to derive
 #[derive(Display, AsRefStr, EnumString)]
@@ -162,7 +164,6 @@ impl Board {
                                     } else {
                                         return None;
                                     }
-                                // } else if focus_piece_data.basic_piece_type == BasicPieceType::Pawn && VERTICALS.contains(&drctn) {
                                 } else if data.basic_piece_type == BasicPieceType::Pawn
                                     && VERTICALS.contains(&drctn)
                                 {
@@ -310,14 +311,14 @@ impl Board {
         return Some(new_board);
     }
 
-    pub fn process_move(&self, from: Square, to: Square) -> Option<Board> {
+    pub fn pre_processed_move(&self, from: Square, to: Square) -> Option<Board> {
         // assume a legal move - but some checks anyway
         // if self.is_square_occupied(from) && let Some(piece) = self.get_piece_on(from) {
         let piece = self.get_piece_on(from)?;
         let pchar = piece.get_piece_type_as_char();
         let pid = format!("{}{}", to, pchar);
         let mut prpsd_board = self.clone();
-        println!("Processing move '{from}-{to}', with pid '{pid}'");
+        println!("pre_processed move '{from}-{to}', with pid '{pid}'");
         prpsd_board.assess_vacated(from, to);
         prpsd_board.remove_piece_from(from);
         prpsd_board.create_and_place_piece(&pid);
@@ -350,7 +351,9 @@ impl Board {
                 if let Some(chunk) = xrs.get(i..(i + pattern_len)) {
                     // println!("d chunk: {}", chunk);
                     let od_sq = Square::from_str(&chunk[0..=1]).unwrap();
-                    let od_piece = self.pieces.get_mut(&od_sq).expect("Expected a piece to exist at the given square"); // Fixed logic problem if None
+                    let od_piece =
+                            self.pieces.get_mut(&od_sq)
+                            .expect("Expected a piece to exist at the given square"); // Fixed logic problem if None
                     let od_piece_data = od_piece.get_piece_data();
                     // println!("piece: {od_piece:?}, date: {od_piece_data:?}");
                     if od_piece_data.sliding == false {
@@ -428,18 +431,17 @@ impl Board {
                     None => {
 
                         rpiece.exchangers.remove(&dir);
-                        println!("Square: {}, pid: {} removed exchangers in direction: {}, retaining exchangers: {:?}",
-                                    sq, rpiece.pid, dir, rpiece.exchangers);
-                    }
+                        // println!("Square: {}, pid: {} removed exchangers in direction: {}, retaining exchangers: {:?}",
+                        //             sq, rpiece.pid, dir, rpiece.exchangers);
+                        println!("{}", rpiece);
+                   }
                     Some (xrs) => {
                         rpiece.exchangers.insert(dir, xrs);
-                        // println!("Square: {}, pid: {}, updated exchangers in direction: {} to {:?}",
-                        //             sq, rpiece.pid, dir, rpiece.exchangers);
-                        println!("Square: {}, pid: {}, updated exchangers: {:?}",
-                        sq, rpiece.pid, rpiece.exchangers);                 
+                        // println!("Square: {}, pid: {}, updated exchangers: {:?}",
+                        // sq, rpiece.pid, rpiece.exchangers);
+                        println!("{}", rpiece);                
                     }
                 }
-
             }
         }
         let mut new_board = self.clone();
@@ -586,5 +588,21 @@ impl Board {
                 println!("-{square}");
             }
         }
+    }
+
+    pub fn to_ordered_string(&self) -> String {
+        let mut out = String::new();
+        for square in Square::iter() {
+            if let Some(piece) = self.pieces.get(&square) {
+                writeln!(&mut out, "{}", piece).unwrap();
+            }
+        }
+        out
+    }
+}
+
+impl fmt::Display for Board {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.to_ordered_string())
     }
 }
