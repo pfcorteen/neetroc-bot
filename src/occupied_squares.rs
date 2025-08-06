@@ -104,25 +104,19 @@ pub fn get_next_sqid(osqid: &str, drctn: Direction) -> Option<String> {
             if let Some(rlmt) = rlmt_opt {
                 let ridx_opt: Option<usize> = RANKS.find(sqid_rank);
                 let ridx: i8 = ridx_opt.unwrap() as i8;
-                // let ridx = (rank.to_digit(10)? as i8) - 1;
                 if ridx == rlmt {
                     return None; // too close to edge of board
                 }
                 rank = RANKS.chars().nth((ridx + roffset) as usize).unwrap();
-                // let new_ridx = ridx.checked_add_signed(roffset)?;
-                // rank = new_ridx as char;
             } // None of rlmt -> use default rank
 
             if let Some(flmt) = flmt_opt {
                 let fidx_opt: Option<usize> = FILES.find(sqid_file);
                 let fidx: i8 = fidx_opt.unwrap() as i8;
-                // let fidx = (file.to_ascii_lowercase() as u8) - ('a' as u8);
                 if fidx == flmt {
                     return None; // too close to edge of board
                 }
                 file = FILES.chars().nth((fidx + foffset) as usize).unwrap();
-                // let new_fidx = fidx.checked_add_signed(foffset)?;
-                // file = new_fidx as char;
             } // None of flmt -> use default file
 
             let sqid = [file, rank];

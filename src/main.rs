@@ -15,12 +15,32 @@ fn main() {
         println!("Next board has {} pieces", next_board.len());
         println!("Next board:");
         println!("{}", next_board); // NNB too heavy for debug runs
+
+        if let Some(prpsd_board) = board.pre_processed_move(e5, f6) {
+            let next_str = next_board.to_ordered_string();
+            let prpsd_str = prpsd_board.to_ordered_string();
+            if next_str == prpsd_str {
+                println!("Test passed!");
+            } else {
+                println!("Test failed! Diff:");
+                let next_lines: Vec<_> = next_str.lines().collect();
+                let prpsd_lines: Vec<_> = prpsd_str.lines().collect();
+                let max_len = next_lines.len().max(prpsd_lines.len());
+                for i in 0..max_len {
+                    let n = next_lines.get(i).unwrap_or(&"");
+                    let p = prpsd_lines.get(i).unwrap_or(&"");
+                    if n != p {
+                        println!("- Next:   {}", n);
+                        println!("+ Prpsd:  {}", p);
+                    }
+                }
+            }
+        }
     }
 
     if let Some(prpsd_board) = board.pre_processed_move(e5, f6) {
-        // prpsd_board.build_new_xchngrs();
         println!("pre_processed_move board has {} pieces", prpsd_board.len());
-        // println!("Proposed board: {prpsed_board:?}"); NNB too heavy for debug runs
+        println!("{}", prpsd_board); // NNB too heavy for debug runs
     }
 
     // test_piece_moves();

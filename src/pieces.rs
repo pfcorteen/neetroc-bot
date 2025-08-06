@@ -216,6 +216,7 @@ impl Piece {
             panic!("Invalid piece type")
         }
     }
+
     pub fn get_pid(&self) -> &str {
         &self.pid
     }
