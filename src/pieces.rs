@@ -57,80 +57,80 @@ pub enum PieceType {
 pub struct PieceTypeData {
     pub basic_piece_type: BasicPieceType,
     pub side: Side,
-    pub sliding: bool,
+    pub is_sliding: bool,
     pub directions: Vec<Direction>,
 }
 
 pub static WHITE_KING_DATA: Lazy<PieceTypeData> = Lazy::new(|| PieceTypeData {
     basic_piece_type: BasicPieceType::King,
     side: Side::White,
-    sliding: false,
+    is_sliding: false,
     directions: [N, NE, E, SE, S, SW, W, NW].to_vec(),
 });
 pub static BLACK_KING_DATA: Lazy<PieceTypeData> = Lazy::new(|| PieceTypeData {
     basic_piece_type: BasicPieceType::King,
     side: Side::Black,
-    sliding: false,
+    is_sliding: false,
     directions: [N, NE, E, SE, S, SW, W, NW].to_vec(),
 });
 pub static WHITE_QUEEN_DATA: Lazy<PieceTypeData> = Lazy::new(|| PieceTypeData {
     basic_piece_type: BasicPieceType::Queen,
     side: Side::White,
-    sliding: true,
+    is_sliding: true,
     directions: [N, NE, E, SE, S, SW, W, NW].to_vec(),
 });
 pub static BLACK_QUEEN_DATA: Lazy<PieceTypeData> = Lazy::new(|| PieceTypeData {
     basic_piece_type: BasicPieceType::Queen,
     side: Side::Black,
-    sliding: true,
+    is_sliding: true,
     directions: [N, NE, E, SE, S, SW, W, NW].to_vec(),
 });
 pub static WHITE_ROOK_DATA: Lazy<PieceTypeData> = Lazy::new(|| PieceTypeData {
     basic_piece_type: BasicPieceType::Rook,
     side: Side::White,
-    sliding: true,
+    is_sliding: true,
     directions: [N, E, S, W].to_vec(),
 });
 pub static BLACK_ROOK_DATA: Lazy<PieceTypeData> = Lazy::new(|| PieceTypeData {
     basic_piece_type: BasicPieceType::Rook,
     side: Side::Black,
-    sliding: true,
+    is_sliding: true,
     directions: [N, E, S, W].to_vec(),
 });
 pub static WHITE_BISHOP_DATA: Lazy<PieceTypeData> = Lazy::new(|| PieceTypeData {
     basic_piece_type: BasicPieceType::Bishop,
     side: Side::White,
-    sliding: true,
+    is_sliding: true,
     directions: [NE, SE, SW, NW].to_vec(),
 });
 pub static BLACK_BISHOP_DATA: Lazy<PieceTypeData> = Lazy::new(|| PieceTypeData {
     basic_piece_type: BasicPieceType::Bishop,
     side: Side::Black,
-    sliding: true,
+    is_sliding: true,
     directions: [NE, SE, SW, NW].to_vec(),
 });
 pub static WHITE_KNIGHT_DATA: Lazy<PieceTypeData> = Lazy::new(|| PieceTypeData {
     basic_piece_type: BasicPieceType::Knight,
     side: Side::White,
-    sliding: false,
+    is_sliding: false,
     directions: [NNE, ENE, ESE, SSE, SSW, WSW, WNW, NNW].to_vec(),
 });
 pub static BLACK_KNIGHT_DATA: Lazy<PieceTypeData> = Lazy::new(|| PieceTypeData {
     basic_piece_type: BasicPieceType::Knight,
     side: Side::Black,
-    sliding: false,
+    is_sliding: false,
     directions: [NNE, ENE, ESE, SSE, SSW, WSW, WNW, NNW].to_vec(),
 });
 pub static WHITE_PAWN_DATA: Lazy<PieceTypeData> = Lazy::new(|| PieceTypeData {
     basic_piece_type: BasicPieceType::Pawn,
     side: Side::White,
-    sliding: false,
+    is_sliding: false,
     directions: [N, NE, NW].to_vec(),
 });
 pub static BLACK_PAWN_DATA: Lazy<PieceTypeData> = Lazy::new(|| PieceTypeData {
     basic_piece_type: BasicPieceType::Pawn,
     side: Side::Black,
-    sliding: false,
+    is_sliding: false,
     directions: [S, SW, SE].to_vec(),
 });
 

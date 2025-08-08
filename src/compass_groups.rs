@@ -2,7 +2,7 @@ use strum_macros::EnumIter;
 use crate::board::{Square};
 use strum::{AsRefStr, Display, EnumString};
 
-#[derive(Debug, EnumIter, PartialEq, Eq, Hash, Copy, Clone, )] // These are useful traits to derive
+#[derive(Debug, EnumIter, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone, )] // These are useful traits to derive
 #[derive(Display, AsRefStr, EnumString)]
 pub enum Direction { N, NNE, NE, ENE, E, ESE, SE, SSE, S, SSW, SW, WSW, W, WNW, NW, NNW }
 

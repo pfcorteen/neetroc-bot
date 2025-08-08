@@ -227,7 +227,7 @@ impl Board {
                                 }
                             } else {
                                 //sliding only
-                                if !data.sliding || !data.directions.contains(&odrctn) {
+                                if !data.is_sliding || !data.directions.contains(&odrctn) {
                                     if !pids.is_empty() {
                                         return Some(pids);
                                     } else if !HALF_WINDS.contains(&drctn)
@@ -309,7 +309,7 @@ impl Board {
                                     }
                                 } else {
                                     //sliding only
-                                    if piece_data.sliding && piece_data.directions.contains(&odrctn)
+                                    if piece_data.is_sliding && piece_data.directions.contains(&odrctn)
                                     {
                                         return None;
                                     }
@@ -325,14 +325,14 @@ impl Board {
                                 // pins.push_str("*");
                             } else if !pin_established {
                                 if !piece_data.directions.contains(&odrctn)
-                                    || !piece_data.sliding
+                                    || !piece_data.is_sliding
                                     || piece_data.side == focus_king_piece_data.side
                                 {
                                     return None;
                                 }
                                 pin_established = true;
                             } else if !piece_data.directions.contains(&odrctn)
-                                || !piece_data.sliding
+                                || !piece_data.is_sliding
                             {
                                 break;
                             }
@@ -378,6 +378,9 @@ impl Board {
 
         prpsd_board.assess_landed(from, to, & mut xr_updates);
 
+        // Sort updates by Direction enum before processing
+        xr_updates.sort_by(|a, b| a.1.cmp(&b.1));
+        
         for (sq, dir, xrs_opt) in xr_updates {
             if let Some(rpiece) = prpsd_board.pieces.get_mut(&sq) {
                 match xrs_opt {
@@ -431,7 +434,7 @@ impl Board {
                         .expect("Expected a piece to exist at the given square");
                     dir_xrs = od_piece.exchangers.get(&dir).cloned();
                     let od_piece_data = od_piece.get_piece_data();
-                    if od_piece_data.sliding == false {
+                    if od_piece_data.is_sliding == false {
                         // only possible for first exchanger in list - do not continue with list
                         updts.extend([(od_sq, opp_dir, Some(opp_xrs.clone()))]);
                         break;
@@ -471,33 +474,38 @@ impl Board {
         for (d, d_xrs, od_opt_ref) in &xr_data {
             let od = d.opposite();
             if !used_opposites.contains(d) {
-                match od_opt_ref {
-                    Some(od_xrs) => {
-                        // let od_xs = od_xs_opt.as_ref();
-                        if HALF_WINDS.contains(d) {
-                            let d_sq = Square::from_str(&d_xrs[0..=1]).unwrap();
-                            let od_sq = Square::from_str(&od_xrs[0..=1]).unwrap();
-                            updates.extend([(d_sq, *d, None)]);
-                            updates.extend([(od_sq, od, None)]);
-                        } else  {
-                            // if CARDINALS.contains(d) {
-                            // ultimately there may be no reason to process CARDINALS seperately from ORDINALS
-                            let od_trnsfr_updates = transfer_exchangers(od, d_xrs, od_xrs);
-                            let d_trnsfr_updates = transfer_exchangers(*d, od_xrs, d_xrs);
-                            updates.extend(od_trnsfr_updates);
-                            updates.extend(d_trnsfr_updates);
-                        }
+                // if *d == mdir || od == mdir {
+                //     // deliberately avoid processing the direction or opposite direction of the moving piece
+                //     println!("direction is move direction: 'b2B | NE:f6pg7b, E:e2Q' possibly we have nothing to do in this eventuality?")
+                // } else {
+                if *d != mdir && od != mdir {
+                    // deliberately avoid processing the direction or opposite direction of the moving piece
+                    match od_opt_ref {
+                        Some(od_xrs) => {
+                            // let od_xs = od_xs_opt.as_ref();
+                            if HALF_WINDS.contains(d) {
+                                let d_sq = Square::from_str(&d_xrs[0..=1]).unwrap();
+                                let od_sq = Square::from_str(&od_xrs[0..=1]).unwrap();
+                                updates.extend([(d_sq, *d, None)]);
+                                updates.extend([(od_sq, od, None)]);
+                            } else  {
+                                // if CARDINALS.contains(d) {
+                                // ultimately there may be no reason to process CARDINALS seperately from ORDINALS
+                                let od_trnsfr_updates = transfer_exchangers(od, d_xrs, od_xrs);
+                                let d_trnsfr_updates = transfer_exchangers(*d, od_xrs, d_xrs);
+                                updates.extend(od_trnsfr_updates);
+                                updates.extend(d_trnsfr_updates);
+                            }
 
-                        used_opposites.push(od);
-                    }
-                    None => {
-                        println!("No opposite exchangers for direction {od:?}");
+                            used_opposites.push(od);
+                        }
+                        None => {
+                            println!("No opposite exchangers for direction {od:?}");
+                        }
                     }
                 }
             }
         }
-
-        // return xr_updates;
     }
     pub fn assess_landed(&mut self, from: Square, to: Square, updates: & mut Vec<(Square, Direction, Option<String>)>)  {
         let from_piece: &Piece = self.get_piece_on(from).unwrap();
@@ -539,8 +547,9 @@ impl Board {
             let new_piece_drctns = &new_piece_data.directions;
 
             for new_drctn in new_piece_drctns {
+                // exchangers created by new piece position focus
                 if let Some(ray_path) = generate_ray_path(to, *new_drctn, self.occupied) {
-                    //here we are not looking to establish exchangers on the moved to square...
+                    //here we are not looking to establish exchangers from the moved to square...
                     // intead we need to put exchangers information about the moved piece attacking or defending
                     println!("assess_landed attacking - Square: {to}, drctn: {new_drctn}, raypath: {ray_path}");
                     let sliding_only = ray_path.starts_with('_'); // ...at a distance therefore sliding only
@@ -558,16 +567,34 @@ impl Board {
 
                     let sq = &ray_path[llmt..ulmt];
                     let square = Square::from_str(&sq).unwrap();
-                    if !sliding_only  {
-                        if new_piece_data.basic_piece_type == BasicPieceType::Pawn 
-                                && ORDINALS.contains(new_drctn) {
+
+                    if new_piece_data.basic_piece_type == BasicPieceType::Pawn && CARDINALS.contains(new_drctn) {
+                        // pawns can't capture when moving N or S
+                        continue;
+                    }
+                    
+                    // if !sliding_only { // NB: exchangable piece is one step away
+                    //     // NB: ray_path for Half-winds are designed to not start with an underscore even though 2 steps away
+                    //     updates.extend([(square, odir, Some(new_pid.clone()))]);
+                    //     println!("assess_landed: any piece to square: {square}, drctn: {new_drctn}, pid_seq: {}", &new_pid);                        
+
+                    // } else { // sliding_only
+                    //     if new_piece_data.is_sliding {
+                    //         updates.extend([(square, odir, Some(new_pid.clone()))]);
+                    //         println!("assess_landed: sliding only to square: {square}, drctn: {new_drctn}, pid_seq: {}", &new_pid);                             
+                    //     }
+                    // }
+
+                    if !sliding_only || new_piece_data.is_sliding { // NB: exchangable piece is one step away
+                        // NB: ray_path for Half-winds are designed to not start with an underscore even though 2 steps away
+                        let addtnl_xrs_opt = new_piece.exchangers.get(&odir).clone();
+                        if addtnl_xrs_opt.is_some() {
+                            let addtnl_xrs = addtnl_xrs_opt.unwrap();
+                            updates.extend([(square, odir, Some(new_pid.clone() + addtnl_xrs))]);
+                        } else {
                             updates.extend([(square, odir, Some(new_pid.clone()))]);
-                            println!("assess_landed: not sliding only drctn: {new_drctn}, pid_seq: {}", &new_pid);                      
-                        } else { // sliding only
-                            println!("assess_landed: sliding only drctn: {new_drctn}, pid_seq: {}", &new_pid);
                         }
-                    } else {
-                        // sliding only
+                        println!("assess_landed: any piece to square: {square}, drctn: {new_drctn}, pid_seq: {}", &new_pid);                        
                     }
                 }
             }
@@ -637,9 +664,11 @@ impl Board {
         self.create_and_place_piece("e3R");
         self.create_and_place_piece("e4R");
 
+        self.create_and_place_piece("b2B");
         self.create_and_place_piece("c6N");
         self.create_and_place_piece("e5P");
         self.create_and_place_piece("g4n");
+        self.create_and_place_piece("g7b");
 
         self.create_and_place_piece("e6r");
         self.create_and_place_piece("e7r");
