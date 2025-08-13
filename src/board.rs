@@ -534,6 +534,55 @@ impl Board {
     pub fn assess_landed(&mut self, new_pid: String, drctn_back: Direction, updates: & mut Vec<(Square, Direction, Option<String>)>)  {
 
         let to = Square::from_str(&new_pid[0..=1]).unwrap();
+        let link_affected_pieces = | piece: &Piece |
+                    -> Vec<(Square, Direction, Option<String>)> {
+
+                    let mut local_updates: Vec<(Square, Direction, Option<String>)> = Vec::new();
+            let piece_data = piece.get_piece_data();
+            let piece_drctns = &piece_data.directions;
+            
+            for drctn in piece_drctns {
+                // exchangers created by new piece position focus
+                if let Some(ray_path) = generate_ray_path(to, *drctn, self.occupied) {
+                    //here we are not looking to establish exchangers from the moved to square...
+                    // intead we need to put exchangers information about the moved piece attacking or defending
+                    println!("assess_landed attacking - Square: {to}, drctn: {drctn}, raypath: {ray_path}");
+                    let sliding_only = ray_path.starts_with('_'); // ...at a distance therefore sliding only
+                    let odir = drctn.opposite();
+
+                    let llmt;
+                    let ulmt;
+                    if sliding_only {
+                        llmt = 1;
+                        ulmt = 3;
+                    } else {
+                        llmt = 0;
+                        ulmt = 2;
+                    }
+
+                    let sq = &ray_path[llmt..ulmt];
+                    let square = Square::from_str(&sq).unwrap();
+
+                    if piece_data.basic_piece_type == BasicPieceType::Pawn && CARDINALS.contains(drctn) {
+                        // pawns can't capture when moving N or S
+                        continue;
+                    }
+
+                    if !sliding_only || piece_data.is_sliding { // NB: exchangable piece is one step away
+                        // NB: ray_path for Half-winds are designed to not start with an underscore even though 2 steps away
+                        let addtnl_xrs_opt = piece.exchangers.get(&odir).clone();
+                        if addtnl_xrs_opt.is_some() {
+                            let addtnl_xrs = addtnl_xrs_opt.unwrap();
+                            local_updates.push((square, odir, Some(new_pid.clone() + addtnl_xrs)));
+                        } else {
+                            local_updates.push((square, odir, Some(new_pid.clone())));
+                        }
+                        println!("assess_landed: any piece to square: {square}, drctn: {drctn}, pid_seq: {}", &new_pid);                        
+                    }
+                }
+            }
+            local_updates
+        };
 
         if self.pieces.contains_key(&to) { // NB: this is pre-move!!
             // transrer the exchangers from the captured piece to the new piece
@@ -545,11 +594,9 @@ impl Board {
             let cptrd_data = cptrd_piece.get_piece_data();
             let _cptrd_drctns = &cptrd_data.directions;
             let op_mv_xrs = cptrd_piece.exchangers.get(&drctn_back).unwrap();
-            // let opdir_xrs_opt = cptrd_piece.exchangers.get(&opdir).clone();
-
             let premove_pid = &op_mv_xrs[0..=2];
-            // let mut new_piece = Piece::new(&premove_pid).unwrap();
             let mut new_piece = Piece::new(&new_pid).unwrap();
+
             new_piece.exchangers = cptrd_piece.exchangers.clone();
             let op_mv_xrs = new_piece.exchangers.get_mut(&drctn_back).unwrap();
             let op_mv_xrs = op_mv_xrs.replace(&premove_pid, "");
@@ -559,67 +606,14 @@ impl Board {
                 new_piece.exchangers.insert(drctn_back, op_mv_xrs);
             }
 
-            let new_piece_data = new_piece.get_piece_data();
-            let new_piece_drctns = &new_piece_data.directions;
+            let link_updates = link_affected_pieces(&new_piece);
+            updates.extend(link_updates);
 
-            for new_drctn in new_piece_drctns {
-                // exchangers created by new piece position focus
-                if let Some(ray_path) = generate_ray_path(to, *new_drctn, self.occupied) {
-                    //here we are not looking to establish exchangers from the moved to square...
-                    // intead we need to put exchangers information about the moved piece attacking or defending
-                    println!("assess_landed attacking - Square: {to}, drctn: {new_drctn}, raypath: {ray_path}");
-                    let sliding_only = ray_path.starts_with('_'); // ...at a distance therefore sliding only
-                    let odir = new_drctn.opposite();
-
-                    let llmt;
-                    let ulmt;
-                    if sliding_only {
-                        llmt = 1;
-                        ulmt = 3;
-                    } else {
-                        llmt = 0;
-                        ulmt = 2;
-                    }
-
-                    let sq = &ray_path[llmt..ulmt];
-                    let square = Square::from_str(&sq).unwrap();
-
-                    if new_piece_data.basic_piece_type == BasicPieceType::Pawn && CARDINALS.contains(new_drctn) {
-                        // pawns can't capture when moving N or S
-                        continue;
-                    }
-                    
-                    // if !sliding_only { // NB: exchangable piece is one step away
-                    //     // NB: ray_path for Half-winds are designed to not start with an underscore even though 2 steps away
-                    //     updates.extend([(square, odir, Some(new_pid.clone()))]);
-                    //     println!("assess_landed: any piece to square: {square}, drctn: {new_drctn}, pid_seq: {}", &new_pid);                        
-
-                    // } else { // sliding_only
-                    //     if new_piece_data.is_sliding {
-                    //         updates.extend([(square, odir, Some(new_pid.clone()))]);
-                    //         println!("assess_landed: sliding only to square: {square}, drctn: {new_drctn}, pid_seq: {}", &new_pid);                             
-                    //     }
-                    // }
-
-                    if !sliding_only || new_piece_data.is_sliding { // NB: exchangable piece is one step away
-                        // NB: ray_path for Half-winds are designed to not start with an underscore even though 2 steps away
-                        let addtnl_xrs_opt = new_piece.exchangers.get(&odir).clone();
-                        if addtnl_xrs_opt.is_some() {
-                            let addtnl_xrs = addtnl_xrs_opt.unwrap();
-                            updates.extend([(square, odir, Some(new_pid.clone() + addtnl_xrs))]);
-                        } else {
-                            updates.extend([(square, odir, Some(new_pid.clone()))]);
-                        }
-                        println!("assess_landed: any piece to square: {square}, drctn: {new_drctn}, pid_seq: {}", &new_pid);                        
-                    }
-                }
-            }
-
-            // self.remove_piece_from(from);
             self.place_piece(new_piece);
+            
         } else {
             // calculate the moved pieces new exchangers
-            let mut new_piece = Piece::new(&new_pid).unwrap();
+            let new_piece = Piece::new(&new_pid).unwrap();
 
             let updates_for_piece = self.updates_per_piece(&to, new_piece.clone());
             let converted_updates: Vec<(Square, Direction, Option<String>)> = updates_for_piece
@@ -628,55 +622,9 @@ impl Board {
                 .collect();
             updates.extend(converted_updates);
 
-            let new_piece_data = new_piece.get_piece_data();
-            let new_piece_drctns = &new_piece_data.directions;
-            
-            for new_drctn in new_piece_drctns {
-                // exchangers created by new piece position focus
-                if let Some(ray_path) = generate_ray_path(to, *new_drctn, self.occupied) {
-                    //here we are not looking to establish exchangers from the moved to square...
-                    // intead we need to put exchangers information about the moved piece attacking or defending
-                    println!("assess_landed attacking - Square: {to}, drctn: {new_drctn}, raypath: {ray_path}");
-                    let sliding_only = ray_path.starts_with('_'); // ...at a distance therefore sliding only
-                    let odir = new_drctn.opposite();
+            let link_updates = link_affected_pieces(&new_piece);
+            updates.extend(link_updates);
 
-                    let llmt;
-                    let ulmt;
-                    if sliding_only {
-                        llmt = 1;
-                        ulmt = 3;
-                    } else {
-                        llmt = 0;
-                        ulmt = 2;
-                    }
-
-                    let sq = &ray_path[llmt..ulmt];
-                    let square = Square::from_str(&sq).unwrap();
-
-                    if new_piece_data.basic_piece_type == BasicPieceType::Pawn && CARDINALS.contains(new_drctn) {
-                        // pawns can't capture when moving N or S
-                        continue;
-                    }
-
-                    if !sliding_only || new_piece_data.is_sliding { // NB: exchangable piece is one step away
-                        // NB: ray_path for Half-winds are designed to not start with an underscore even though 2 steps away
-                        let addtnl_xrs_opt = new_piece.exchangers.get(&odir).clone();
-                        if addtnl_xrs_opt.is_some() {
-                            let addtnl_xrs = addtnl_xrs_opt.unwrap();
-                            updates.extend([(square, odir, Some(new_pid.clone() + addtnl_xrs))]);
-                        } else {
-                            updates.extend([(square, odir, Some(new_pid.clone()))]);
-                        }
-                        println!("assess_landed: any piece to square: {square}, drctn: {new_drctn}, pid_seq: {}", &new_pid);                        
-                    }
-                }
-            }
-
-
-
-
-
-            // self.remove_piece_from(from);
             self.place_piece(new_piece);
         }
     }
