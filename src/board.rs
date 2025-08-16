@@ -1,6 +1,7 @@
 use crate::{CARDINALS, ORDINALS};
 use crate::compass_groups::{Direction, HALF_WINDS, VERTICALS, get_direction};
 use crate::occupied_squares::{bit_to_string_square, generate_ray_path, square_to_bit};
+use crate::pid::Pid;
 use crate::pieces::BasicPieceType;
 use crate::pieces::Piece;
 use crate::pieces::PieceType;
@@ -112,46 +113,28 @@ impl Board {
     }
 
     pub fn place_piece(&mut self, piece: Piece) {
-        let sq = piece.get_square();
-        let square = Square::from_str(sq).unwrap();
+        let square = piece.get_square();
         self.pieces.insert(square, piece);
         let bit = square_to_bit(square);
         self.occupied |= 1u64 << bit;
     }
 
     pub fn create_and_place_piece(&mut self, piece_identifier: &str) {
-        if let Some(piece) = Piece::new(piece_identifier) {
-            let sq = &piece_identifier[0..2];
-            let square = Square::from_str(sq).unwrap();
-            self.pieces.insert(square, piece);
+        match Pid::new(piece_identifier) {
+            Ok(pid) => {
+                let piece = Piece::new(pid);
+                let sq = &piece_identifier[0..2];
+                let square = Square::from_str(sq).unwrap();
+                self.pieces.insert(square, piece);
 
-            let bit = square_to_bit(square);
-            self.occupied |= 1u64 << bit;
-        } else {
-            println!("Unable to create piece with identifier: {}", piece_identifier);
+                let bit = square_to_bit(square);
+                self.occupied |= 1u64 << bit;
+            }
+            Err(e) => {
+                println!("Unable to create piece with identifier '{}': {}", piece_identifier, e);
+            }
         }
     }
-    // pub fn updates_per_piece(
-    //     &self,
-    //     square: &Square,
-    //     piece: Piece,
-    //     // skip_drctn: Option<Direction>
-    // ) -> Vec<(Square, Direction, String)> {
-    //     let mut updates: Vec<(Square, Direction, String)> = Vec::new();
-    //     let piece_type_char = piece.get_piece_type_as_char();
-    //     if let Some(piece_type) = PieceType::get_piece_type(piece_type_char) {
-    //         let data: &'static PieceTypeData = piece_type.get_data();
-    //         for drctn in Direction::iter() {
-    //             if let Some(ray_path) = generate_ray_path(*square, drctn, self.occupied) {
-    //                 // println!("Square: {square}, drctn: {drctn}, raypath: {ray_path}");
-    //                 if let Some(xchngrs) = Board::extract_pid_seq(self, data, &ray_path, drctn) {
-    //                     updates.push((*square, drctn, xchngrs));
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     updates
-    // }
     pub fn updates_per_piece(
         &self,
         square: &Square,
@@ -174,11 +157,9 @@ impl Board {
         updates
     }
     pub fn build_all_xchngrs(&mut self) {
-        // println!("DEBUG: Entering build_all_xchngrs");
         // First collect all the paths and directions we need to process
         let mut updates: Vec<(Square, Direction, String)> = Vec::new();
 
-        // println!("DEBUG: Starting piece iteration");
         for (square, piece) in &self.pieces {
             let updates_for_piece = self.updates_per_piece(square, piece.clone());
             updates.extend(updates_for_piece);
@@ -267,7 +248,7 @@ impl Board {
                                 }
                             }
 
-                            pids.push_str(pid);
+                            pids.push_str(&pid.to_string());
                             sliding_only = true;
                             llmt += 2;
                             ulmt += 2;
@@ -359,7 +340,7 @@ impl Board {
                                 break;
                             }
 
-                            pins.push_str(&pid);
+                            pins.push_str(&pid.to_string());
                             llmt += 2;
                             ulmt += 2;
                         }
@@ -382,18 +363,19 @@ impl Board {
         println!("Fully processed move '{from}-{to}', with pid '{pid}'");
         new_board.remove_piece_from(from);
         new_board.create_and_place_piece(&pid);
+        new_board.build_all_xchngrs();
         return Some(new_board);
     }
 
     pub fn pre_processed_move(&self, from: Square, to: Square) -> Option<Board> {
 
         let mut xr_updates: Vec<(Square, Direction, Option<String>)> = Vec::new();
-
         // assume a legal move - but some checks anyway
+
+        let mut prpsd_board = self.clone();
         let piece = self.get_piece_on(from)?;
         let pchar = piece.get_piece_type_as_char();
         let new_pid = format!("{}{}", to, pchar);
-        let mut prpsd_board = self.clone();
         let move_drctn = get_direction(from, to)
                 .expect("pre_processed_move: surely a legal move must have a valid direction?");
         let drctn_back = move_drctn.opposite();
@@ -411,11 +393,9 @@ impl Board {
                 match xrs_opt {
                     None => {
                         rpiece.exchangers.remove(&dir);
-                        // println!("{}", rpiece);
                     }
                     Some(xrs) => {
                         rpiece.exchangers.insert(dir, xrs);
-                        // println!("{}", rpiece);
                     }
                 }
             }
@@ -467,14 +447,14 @@ impl Board {
                         updts.extend([(od_sq, opp_dir, Some(opp_xrs.clone()))]);
                         break;
                     } else if let Some(exstng_xrs) = od_piece.exchangers.get(&opp_dir) {
-                        println!("tramsfer_exchangers exstng_xrs opp_xrs");
+                        // println!("tramsfer_exchangers exstng_xrs opp_xrs");
                         updts.extend([(
                             od_sq,
                             opp_dir,
                             Some(exstng_xrs.to_string() + &opp_xrs.clone()),
                         )]);                       
                     } else {
-                        println!("tramsfer_exchangers opp_xrs only");
+                        // println!("tramsfer_exchangers opp_xrs only");
                         updts.extend([(od_sq, opp_dir, Some(opp_xrs.clone()))]);
                     }
                 }
@@ -486,7 +466,7 @@ impl Board {
                 let d_piece = self.pieces.get(&d_sq).expect("Expected hanger-on piece to exist at the given square");
                 let exstng_xrs = d_piece.exchangers.get(&opp_dir).cloned();
                 if let Some(exstng_xrs) = exstng_xrs {
-                    println!("transfer_exchanger - the hanger-on {dir}: {d_pid}");
+                    // println!("transfer_exchanger - the hanger-on {dir}: {d_pid}");
                     updts.extend([(
                         d_sq,
                         opp_dir,
@@ -546,7 +526,7 @@ impl Board {
                 if let Some(ray_path) = generate_ray_path(to, *drctn, self.occupied) {
                     //here we are not looking to establish exchangers from the moved to square...
                     // intead we need to put exchangers information about the moved piece attacking or defending
-                    println!("assess_landed attacking - Square: {to}, drctn: {drctn}, raypath: {ray_path}");
+                    // println!("assess_landed attacking - Square: {to}, drctn: {drctn}, raypath: {ray_path}");
                     let sliding_only = ray_path.starts_with('_'); // ...at a distance therefore sliding only
                     let odir = drctn.opposite();
 
@@ -577,7 +557,7 @@ impl Board {
                         } else {
                             local_updates.push((square, odir, Some(new_pid.clone())));
                         }
-                        println!("assess_landed: any piece to square: {square}, drctn: {drctn}, pid_seq: {}", &new_pid);                        
+                        // println!("assess_landed: any piece to square: {square}, drctn: {drctn}, pid_seq: {}", &new_pid);                        
                     }
                 }
             }
@@ -595,7 +575,7 @@ impl Board {
             let _cptrd_drctns = &cptrd_data.directions;
             let op_mv_xrs = cptrd_piece.exchangers.get(&drctn_back).unwrap();
             let premove_pid = &op_mv_xrs[0..=2];
-            let mut new_piece = Piece::new(&new_pid).unwrap();
+            let mut new_piece = Piece::new(Pid::new(&new_pid).unwrap());
 
             new_piece.exchangers = cptrd_piece.exchangers.clone();
             let op_mv_xrs = new_piece.exchangers.get_mut(&drctn_back).unwrap();
@@ -613,7 +593,7 @@ impl Board {
             
         } else {
             // calculate the moved pieces new exchangers
-            let new_piece = Piece::new(&new_pid).unwrap();
+            let new_piece = Piece::new(Pid::new(&new_pid).unwrap());
 
             let updates_for_piece = self.updates_per_piece(&to, new_piece.clone());
             let converted_updates: Vec<(Square, Direction, Option<String>)> = updates_for_piece
@@ -668,6 +648,13 @@ impl Board {
         self.pieces.is_empty()
     }
 
+    pub fn init_from_pid_list(&mut self, pids: Vec<&str>) {
+        self.occupied = 0;
+        for pid in pids {
+            self.create_and_place_piece(&pid.to_string());
+        }
+    }
+        
     pub fn init_double_discovered_check(&mut self) {
         self.occupied = 0;
         self.create_and_place_piece("e1K");
@@ -700,19 +687,7 @@ impl Board {
         self.create_and_place_piece("f6p");
     }
 
-    // pub fn init_custom_to(&mut self) {
-    //     self.occupied = 0;
-    //     self.create_and_place_piece("e1K");
-    //     self.create_and_place_piece("e2Q");
-    //     self.create_and_place_piece("e3R");
-    //     self.create_and_place_piece("e4R");
-    //     // self.create_and_place_piece("e5P");
-    //     self.create_and_place_piece("e6r");
-    //     self.create_and_place_piece("e7r");
-    //     self.create_and_place_piece("e8q");
-    //     self.create_and_place_piece("f8k");
-    //     self.create_and_place_piece("f6P");
-    // }
+
 
     pub fn init_custom1(&mut self) {
         self.create_and_place_piece("f7R");
@@ -783,10 +758,9 @@ impl Board {
 
     pub fn to_ordered_string(&self) -> String {
         let mut out = String::new();
-        for square in Square::iter() {
-            if let Some(piece) = self.pieces.get(&square) {
-                writeln!(&mut out, "{}", piece).unwrap();
-            }
+        writeln!(&mut out, "occupied: {}", self.occupied).unwrap();
+        for (_square, piece) in &self.pieces {
+            writeln!(&mut out, "{}", piece).unwrap();
         }
         out
     }
@@ -798,12 +772,84 @@ impl fmt::Display for Board {
     }
 }
 
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::board::Square::*;
 
+    fn move_test_framework(pids: Vec<&str>, moves: Vec<(Square, Square)>) {
+
+        println!("=== Using move_test_framework for position: {pids:?} and moves: {moves:?} ===");
+        
+        let mut board = Board::new();
+        board.init_from_pid_list(pids);
+        board.build_all_xchngrs();
+        
+        for (from,  to) in moves {
+            let mut next_board = board
+                .full_process_move(from, to)
+                .expect("full_process_move failed");
+            // next_board.build_all_xchngrs();
+            println!("Maximally processed exchangers post move:\n {}", next_board);
+            
+            let prpsd_board = board
+                .pre_processed_move(from, to)
+                .expect("pre_processed_move failed");
+            println!("Pre-processed move completed");
+        
+            let next_str = next_board.to_ordered_string();
+            let prpsd_str = prpsd_board.to_ordered_string();
+            
+            println!("\n=== Comparing results ===");
+            println!("next_board piece count: {}", next_board.len());
+            println!("prpsd_board piece count: {}", prpsd_board.len());
+            
+            if next_str != prpsd_str {
+                println!("\n=== DETAILED DIFF ===");
+                println!("next_board string length: {}", next_str.len());
+                println!("prpsd_board string length: {}", prpsd_str.len());
+                
+                let next_lines: Vec<_> = next_str.lines().collect();
+                let prpsd_lines: Vec<_> = prpsd_str.lines().collect();
+                
+                println!("next_board lines: {}", next_lines.len());
+                println!("prpsd_board lines: {}", prpsd_lines.len());
+                
+                let max_len = next_lines.len().max(prpsd_lines.len());
+                for i in 0..max_len {
+                    let n = next_lines.get(i).unwrap_or(&"");
+                    let p = prpsd_lines.get(i).unwrap_or(&"");
+                    if n != p {
+                        println!("Line {}:", i);
+                        println!("- Next:   '{}'", n);
+                        println!("+ Prpsd:  '{}'", p);
+                    }
+                }
+                
+                println!("\n=== FULL BOARD CONTENTS ===");
+                println!("next_board:\n {}", next_board);
+                println!("\nprpsd_board:\n {}", prpsd_board);
+            }
+            
+            assert_eq!(
+                next_str, prpsd_str,
+                "Board string representations differ, see diff above"
+            );
+            
+            println!("=== Test passed! ===");
+        }
+    }
+
     #[test]
+    fn test_double_discovered_mate_move_sequence() {
+        move_test_framework(
+            vec!["e1K", "a6k", "a5P", "b7p", "a1R", "g2B", "g1B", "d8N"],
+            vec![(g2, f1)]
+        );
+    }
+
     fn test_board_move_exchangers_equality() {
         println!("=== Starting test_board_move_exchangers_equality ===");
         
@@ -822,9 +868,7 @@ mod tests {
         let mut next_board = board
             .full_process_move(e5, f6)
             .expect("full_process_move failed");
-        println!("Full process move completed");
-        
-        next_board.build_all_xchngrs();
+        // next_board.build_all_xchngrs();
         println!("Built exchangers for next_board");
         println!("{}", next_board);
         
@@ -884,8 +928,6 @@ mod tests {
         println!("=== Starting test_board_double_discovered ===");
         
         let mut board = Board::new();
-        println!("Created new board");
-        
         board.init_double_discovered_check();
         println!("Initialized custom board:");
         println!("{}", board);
@@ -898,9 +940,7 @@ mod tests {
         let mut next_board = board
             .full_process_move(g2, f1)
             .expect("full_process_move failed");
-        println!("Full process move completed");
-        
-        next_board.build_all_xchngrs();
+        // next_board.build_all_xchngrs();
         println!("Built exchangers for next_board");
         println!("{}", next_board);
         

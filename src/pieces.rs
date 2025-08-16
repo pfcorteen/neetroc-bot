@@ -1,11 +1,17 @@
+use crate::pid::Pid;
+use crate::board::Square;
 use crate::compass_groups::Direction;
 use crate::compass_groups::Direction::*;
-use regex::Regex;
 use std::collections::HashMap;
 use std::sync::LazyLock as Lazy;
 use std::vec::Vec;
 use std::fmt;
-use strum::IntoEnumIterator;
+use std::str::FromStr;
+// use strum::{AsRefStr, Display, EnumString};
+// use strum::{EnumIter, IntoEnumIterator};
+use strum::{IntoEnumIterator};
+
+
 
 #[derive(Debug, PartialEq)]
 pub enum Side {
@@ -192,19 +198,24 @@ impl PieceType {
 
 #[derive(Debug, Clone)]
 pub struct Piece {
-    pub pid: String,
+    pub pid: Pid,
     pub exchangers: HashMap<Direction, String>,
 }
 impl Piece {
-    pub(crate) fn new(piece_id: &str) -> Option<Self> {
-        let pid_regex = Regex::new(r"^[a-h][1-8][PpNnBbRrQqKk]$").unwrap();
-        if piece_id.len() == 3 && pid_regex.is_match(piece_id) {
-            Some(Piece {
-                pid: piece_id.to_string(),
-                exchangers: HashMap::new(),
-            })
-        } else {
-            None
+    // pub(crate) fn new(piece_id: &str) -> Option<Self> {
+    pub(crate) fn new(piece_id: Pid) -> Self {
+        // let pid_regex = Regex::new(r"^[a-h][1-8][PpNnBbRrQqKk]$").unwrap();
+        // if piece_id.len() == 3 && pid_regex.is_match(piece_id) {
+        //     Some(Piece {
+        //         pid: piece_id.to_string(),
+        //         exchangers: HashMap::new(),
+        //     })
+        // } else {
+        //     None
+        // }
+        Piece {
+            pid: piece_id,
+            exchangers: HashMap::new(),
         }
     }
     pub fn get_piece_data(&self) -> &'static PieceTypeData {
@@ -217,17 +228,19 @@ impl Piece {
         }
     }
 
-    pub fn get_pid(&self) -> &str {
+    pub fn get_pid(&self) -> &Pid {
         &self.pid
     }
-    pub fn get_square(&self) -> &str {
-        &self.pid[0..2]
+    pub fn get_square(&self) -> Square {
+        let sq = &self.pid.to_string()[0..2];
+        let square = Square::from_str(sq).unwrap();
+        square
     }
     pub fn get_piece_type_as_char(&self) -> char {
-        self.pid.chars().nth(2).unwrap()
+        self.pid.to_string().chars().nth(2).unwrap()
     }
     pub fn get_piece_side(&self) -> Side {
-        match self.pid.chars().nth(2).unwrap().is_uppercase() {
+        match self.pid.to_string().chars().nth(2).unwrap().is_uppercase() {
             true => Side::White,
             _ => Side::Black,
         }
