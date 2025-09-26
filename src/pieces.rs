@@ -7,13 +7,9 @@ use std::sync::LazyLock as Lazy;
 use std::vec::Vec;
 use std::fmt;
 use std::str::FromStr;
-// use strum::{AsRefStr, Display, EnumString};
-// use strum::{EnumIter, IntoEnumIterator};
 use strum::{IntoEnumIterator};
 
-
-
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Side {
     White,
     Black,
@@ -58,6 +54,46 @@ pub enum PieceType {
     WhitePawn,
     BlackPawn,
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum King_Locations {
+    WhiteKing(Square),
+    BlackKing(Square),
+}
+
+impl King_Locations {
+    pub fn new_white_king(square: Square) -> Self {
+        King_Locations::WhiteKing(square)
+    }
+    
+    pub fn new_black_king(square: Square) -> Self {
+        King_Locations::BlackKing(square)
+    }
+    
+    pub fn get_white_king_square(&self) -> Option<Square> {
+        match self {
+            King_Locations::WhiteKing(square) => Some(*square),
+            _ => None,
+        }
+    }
+    
+    pub fn get_black_king_square(&self) -> Option<Square> {
+        match self {
+            King_Locations::BlackKing(square) => Some(*square),
+            _ => None,
+        }
+    }
+    
+    pub fn update_white_king(&mut self, new_square: Square) {
+        *self = King_Locations::WhiteKing(new_square);
+    }
+    
+    pub fn update_black_king(&mut self, new_square: Square) {
+        *self = King_Locations::BlackKing(new_square);
+    }
+}
+
+
 
 #[derive(Debug)]
 pub struct PieceTypeData {
@@ -204,15 +240,6 @@ pub struct Piece {
 impl Piece {
     // pub(crate) fn new(piece_id: &str) -> Option<Self> {
     pub(crate) fn new(piece_id: Pid) -> Self {
-        // let pid_regex = Regex::new(r"^[a-h][1-8][PpNnBbRrQqKk]$").unwrap();
-        // if piece_id.len() == 3 && pid_regex.is_match(piece_id) {
-        //     Some(Piece {
-        //         pid: piece_id.to_string(),
-        //         exchangers: HashMap::new(),
-        //     })
-        // } else {
-        //     None
-        // }
         Piece {
             pid: piece_id,
             exchangers: HashMap::new(),
@@ -239,7 +266,7 @@ impl Piece {
     pub fn get_piece_type_as_char(&self) -> char {
         self.pid.to_string().chars().nth(2).unwrap()
     }
-    pub fn get_piece_side(&self) -> Side {
+    pub fn get_side(&self) -> Side {
         match self.pid.to_string().chars().nth(2).unwrap().is_uppercase() {
             true => Side::White,
             _ => Side::Black,

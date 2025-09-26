@@ -34,8 +34,8 @@ pub fn print_ray_string(origin: &str, direction: Direction, ray: &str) {
 }
 
 pub fn generate_ray_path(square: Square, direction: Direction, occupied: u64) -> Option<String> {
-    // let origin = format!("{square}");
-    let mut empty_count: u8 = 0; // Changed from usize to u8
+
+    let mut empty_count: u8 = 0;
     let mut path = String::new();
 
     let start_bit = square_to_bit(square);
@@ -88,8 +88,60 @@ pub fn generate_ray_path(square: Square, direction: Direction, occupied: u64) ->
     if !path.is_empty() { Some(path) } else { None }
 }
 
+pub fn first_occpd_square (square: Square, direction: Direction, occupied: u64) -> Option<String> {
+    // let origin = format!("{square}");
+    let mut path = String::new();
+    let mut empty_count: u8 = 0;
+    let mut underscore_available = true;
+    let start_bit = square_to_bit(square);
+    let mut current_bit = start_bit;
+    let (shift, edge_check): (i8, Box<dyn Fn(u64) -> bool>) = match direction {
+        Direction::N => (8, Box::new(|b| b <= 55)),
+        Direction::NNE => (17, Box::new(|b| b <= 46 && (b % 8) != 7)),
+        Direction::NE => (9, Box::new(|b| b <= 54 && (b % 8) != 7)),
+        Direction::ENE => (10, Box::new(|b| b <= 53 && (b % 8) < 6)),
+        Direction::E => (1, Box::new(|b| b <= 62 && (b % 8) != 7)),
+        Direction::ESE => (-6, Box::new(|b| b >= 8 && (b % 8) < 6)),
+        Direction::SE => (-7, Box::new(|b| b >= 8 && (b % 8) != 7)),
+        Direction::SSE => (-15, Box::new(|b| b >= 16 && (b % 8) != 7)),
 
-pub fn get_next_sqid(osqid: &str, drctn: Direction) -> Option<String> {
+        // Direction::SSE => (-15, Box::new(|b| b >= 16 && (b % 8) < 8)),
+        Direction::S => (-8, Box::new(|b| b >= 8)),
+        Direction::SSW => (-17, Box::new(|b| b >= 17 && (b % 8) != 0)),
+        Direction::SW => (-9, Box::new(|b| b >= 8 && (b % 8) != 0)),
+        Direction::WSW => (-10, Box::new(|b| b >= 10 && (b % 8) > 1)),
+        Direction::W => (-1, Box::new(|b| (b % 8) != 0)),
+        Direction::WNW => (6, Box::new(|b| b <= 55 && (b % 8) > 1)),
+        Direction::NW => (7, Box::new(|b| b <= 55 && (b % 8) != 0)),
+        Direction::NNW => (15, Box::new(|b| b <= 47 && (b % 8) != 0)),
+    };
+
+    while edge_check(current_bit) {
+        let next_bit = (current_bit as i64 + shift as i64) as u64;
+        if (occupied & (1u64 << next_bit)) != 0 {
+            if empty_count > 0 && underscore_available {
+                path.push('_');
+                empty_count = 0;
+                underscore_available = false;
+            }
+            if let Some(sq) = &bit_to_string_square(next_bit) {
+                path.push_str(sq);
+                return Some(path);
+            }
+        } else {
+            empty_count += 1;
+        }
+        current_bit = next_bit;
+        if HALF_WINDS.contains(&direction) {
+            break;
+        }
+    }
+    None
+}
+
+// pub fn get_next_sqid(osqid: &str, drctn: Direction) -> Option<String> {
+pub fn get_next_sqid(orig_sqid: Square, drctn: Direction) -> Option<String> {
+    let osqid = orig_sqid.to_string();
     if osqid.len() != 2 {
         return None;
     }
@@ -150,7 +202,7 @@ mod tests {
 
     #[test]
     fn test_piece_moves() {
-        let tsq = "a7";
+        let tsq = Square::a7;
         let sq_opt = get_next_sqid(tsq, Direction::N);
         if let Some(sq) = sq_opt {
             assert!(sq == "a8");
@@ -158,14 +210,17 @@ mod tests {
             println!("{sq_opt:?} was None");
         }
 
-        let tsq = "d4";
-        let answers = ["e6", "f5", "f3", "e2", "c2", "b3", "b5", "c6"];
+        let tsq = Square::d4;
+        // let answers = ["e6", "f5", "f3", "e2", "c2", "b3", "b5", "c6"];
+        let answers = [Square::e6, Square::f5, Square::f3, Square::e2, Square::c2, Square::b3, Square::b5, Square::c6];
+
         for (cnt, drctn) in HALF_WINDS.iter().enumerate() {
             let sq_opt = get_next_sqid(tsq, *drctn);
             let answr = answers[cnt];
             if let Some(sq) = sq_opt {
                 println!("{drctn:?} from {tsq} = {sq}, {answr:?}");
-                assert!(sq == answr);
+                let square = Square::from_str(&sq).unwrap();
+                assert!(square == answr);
             } else {
                 println!("{drctn:?} from {tsq} = {sq_opt:?}, {answr:?}");
             }
